@@ -1,0 +1,54 @@
+# Dependencies
+frontend/node_modules/
+backend/venv/
+backend/**/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/**/*.pyc
+backend/**/site-packages/
+
+# Database
+backend/*.db
+backend/instance/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build
+frontend/dist/
+frontend/build/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+ENV/
+
+# Test files
+test_*.py
+*_test.py
