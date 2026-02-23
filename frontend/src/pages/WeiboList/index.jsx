@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Table, Tag, DatePicker, Select, Button, message, Card, Image, Space, Modal, Radio, Popover } from 'antd'
-import { SyncOutlined, EditOutlined, LinkOutlined, PictureOutlined, DeleteOutlined, ClockCircleOutlined, DeleteRowOutlined } from '@ant-design/icons'
+import { EditOutlined, LinkOutlined, PictureOutlined, DeleteOutlined, ClockCircleOutlined, DeleteRowOutlined } from '@ant-design/icons'
 import { weiboApi, bloggerApi } from '../../services/api'
 import dayjs from 'dayjs'
 
@@ -10,12 +10,9 @@ function WeiboList() {
   const [weibos, setWeibos] = useState([])
   const [bloggers, setBloggers] = useState([])
   const [loading, setLoading] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [editingWeibo, setEditingWeibo] = useState(null)
   const [editModalVisible, setEditModalVisible] = useState(false)
   const [editPrediction, setEditPrediction] = useState('unknown')
-  const [syncModalVisible, setSyncModalVisible] = useState(false)
-  const [syncBloggerId, setSyncBloggerId] = useState(null)
   
   // 时间段同步弹窗状态
   const [timeRangeModalVisible, setTimeRangeModalVisible] = useState(false)
@@ -101,12 +98,6 @@ function WeiboList() {
 
 
 
-  const handleSyncAll = () => {
-    // 打开选择博主的弹窗
-    setSyncBloggerId(null)  // 默认全部
-    setSyncModalVisible(true)
-  }
-
   // 打开时间段同步弹窗
   const handleOpenTimeRangeSync = () => {
     setTimeRangeBloggerId(null)
@@ -146,28 +137,6 @@ function WeiboList() {
       message.error('同步失败')
     } finally {
       setTimeRangeSyncing(false)
-    }
-  }
-
-  const handleConfirmSync = async () => {
-    try {
-      setSyncing(true)
-      setSyncModalVisible(false)
-      message.loading('正在同步数据...', 0)
-      const res = await weiboApi.syncAll(syncBloggerId)
-      message.destroy()
-      
-      if (res.success) {
-        message.success(`同步完成，共爬取 ${res.data.total_posts} 条微博`)
-        fetchWeibosWithFilters(filters)
-      } else {
-        message.error(res.message)
-      }
-    } catch (error) {
-      message.destroy()
-      message.error('同步失败')
-    } finally {
-      setSyncing(false)
     }
   }
 
@@ -391,6 +360,8 @@ function WeiboList() {
       title: '发布时间',
       dataIndex: 'publish_time',
       width: 140,
+      sorter: (a, b) => new Date(a.publish_time) - new Date(b.publish_time),
+      defaultSortOrder: 'descend',
       render: (time) => time ? dayjs(time).format('MM-DD HH:mm') : '-'
     },
     {
@@ -435,14 +406,6 @@ function WeiboList() {
           <Space>
             <Button
               type="primary"
-              icon={<SyncOutlined spin={syncing} />}
-              onClick={handleSyncAll}
-              loading={syncing}
-            >
-              同步最新一条竞猜结果
-            </Button>
-            <Button
-              type="default"
               icon={<ClockCircleOutlined />}
               onClick={handleOpenTimeRangeSync}
               loading={timeRangeSyncing}
@@ -479,7 +442,8 @@ function WeiboList() {
             options={[
               { label: '左/红', value: 'left' },
               { label: '右/蓝', value: 'right' },
-              { label: '未知', value: 'unknown' }
+              { label: '未知', value: 'unknown' },
+              { label: '多条', value: 'multiple' }
             ]}
             value={filters.guess_prediction}
             onChange={(value) => handleFilterChange('guess_prediction', value)}
@@ -580,35 +544,6 @@ function WeiboList() {
             <Radio.Button value="right">右</Radio.Button>
             <Radio.Button value="unknown">未知</Radio.Button>
           </Radio.Group>
-        </div>
-      </Modal>
-
-      {/* 同步选择博主弹窗 */}
-      <Modal
-        title="选择同步博主"
-        open={syncModalVisible}
-        onOk={handleConfirmSync}
-        onCancel={() => setSyncModalVisible(false)}
-        okText="开始同步"
-        cancelText="取消"
-      >
-        <div style={{ padding: '20px 0' }}>
-          <p>请选择要同步的博主：</p>
-          <Select
-            placeholder="选择博主（不选则同步全部）"
-            style={{ width: '100%' }}
-            allowClear
-            showSearch
-            filterOption={(input, option) =>
-              option?.label?.toLowerCase().includes(input.toLowerCase())
-            }
-            options={bloggerOptions}
-            value={syncBloggerId}
-            onChange={(value) => setSyncBloggerId(value)}
-          />
-          <p style={{ marginTop: 16, color: '#999', fontSize: 12 }}>
-            提示：不选择博主将同步所有活跃博主。同一轮次只会保留最新的一条微博。
-          </p>
         </div>
       </Modal>
 

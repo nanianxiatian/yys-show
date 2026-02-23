@@ -119,8 +119,8 @@ function GuessAnalysis() {
         dataIndex: 'prediction',
         width: 100,
         render: (pred) => {
-          const colors = { left: 'red', right: 'blue', unknown: 'default' }
-          const texts = { left: '左', right: '右', unknown: '未知' }
+          const colors = { left: 'red', right: 'blue', unknown: 'default', multiple: 'warning' }
+          const texts = { left: '左', right: '右', unknown: '未知', multiple: '多条' }
           return <Tag color={colors[pred]}>{texts[pred]}</Tag>
         }
       },
@@ -211,7 +211,7 @@ function GuessAnalysis() {
     {
       title: '排名',
       dataIndex: 'rank',
-      width: 80,
+      width: 70,
       render: (rank) => {
         const colors = ['#ff4d4f', '#ff7a45', '#ffa940']
         return (
@@ -223,124 +223,157 @@ function GuessAnalysis() {
     },
     {
       title: '博主',
-      dataIndex: 'blogger_nickname'
+      dataIndex: 'blogger_nickname',
+      width: 120
     },
     {
-      title: '预测次数',
+      title: '总预测',
       dataIndex: 'valid_guesses',
-      width: 100
+      width: 80
     },
     {
-      title: '正确',
+      title: '总正确',
       dataIndex: 'correct_guesses',
       width: 80
     },
     {
-      title: '错误',
+      title: '总错误',
       dataIndex: 'wrong_guesses',
       width: 80
     },
     {
-      title: '准确率',
+      title: '总准确率',
       dataIndex: 'accuracy_rate',
-      width: 100,
+      width: 90,
       render: (rate) => (
         <Tag color={rate >= 70 ? 'success' : rate >= 50 ? 'warning' : 'error'}>
           {rate}%
         </Tag>
       )
+    },
+    {
+      title: '最近一天预测',
+      dataIndex: 'last_day_guesses',
+      width: 100,
+      render: (_, record) => {
+        const lastDayCorrect = record.last_day_correct || 0
+        const lastDayWrong = record.last_day_wrong || 0
+        return lastDayCorrect + lastDayWrong
+      }
+    },
+    {
+      title: '最近一天正确',
+      dataIndex: 'last_day_correct',
+      width: 100,
+      render: (num) => <Tag color="success">{num || 0}</Tag>
+    },
+    {
+      title: '最近一天错误',
+      dataIndex: 'last_day_wrong',
+      width: 100,
+      render: (num) => <Tag color="error">{num || 0}</Tag>
+    },
+    {
+      title: '最近一天准确率',
+      dataIndex: 'last_day_accuracy',
+      width: 110,
+      render: (_, record) => {
+        const correct = record.last_day_correct || 0
+        const wrong = record.last_day_wrong || 0
+        const total = correct + wrong
+        const rate = total > 0 ? Math.round((correct / total) * 100) : 0
+        return (
+          <Tag color={rate >= 70 ? 'success' : rate >= 50 ? 'warning' : 'error'}>
+            {rate}%
+          </Tag>
+        )
+      }
     }
   ]
 
   return (
     <div>
-      <Row gutter={16}>
-        <Col span={16}>
-          <Card
-            title="每日竞猜分析"
-            extra={
-              <DatePicker
-                value={selectedDate}
-                onChange={setSelectedDate}
-                allowClear={false}
-              />
-            }
-          >
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={6}>
-                <Statistic
-                  title="参与博主"
-                  value={analysis.blogger_count}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="官方结果"
-                  value={analysis.total_rounds}
-                  suffix="/ 7轮"
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="日期"
-                  value={analysis.date}
-                />
-              </Col>
-              <Col span={6}>
-                <div style={{ marginBottom: 8 }}>查看无竞猜博主</div>
-                <Select
-                  placeholder="选择轮次"
-                  style={{ width: 120 }}
-                  onChange={showMissingBloggers}
-                  options={[
-                    { label: '第1轮', value: 1 },
-                    { label: '第2轮', value: 2 },
-                    { label: '第3轮', value: 3 },
-                    { label: '第4轮', value: 4 },
-                    { label: '第5轮', value: 5 },
-                    { label: '第6轮', value: 6 },
-                    { label: '第7轮', value: 7 }
-                  ]}
-                />
-              </Col>
-            </Row>
+      {/* 准确率排行榜 - 占据整行（上方） */}
+      <Card title="准确率排行榜" style={{ marginBottom: 16 }}>
+        <Table
+          columns={leaderboardColumns}
+          dataSource={leaderboard}
+          rowKey="blogger_id"
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+            pageSizeOptions: ['10', '20', '50']
+          }}
+          size="small"
+          scroll={{ x: 1200 }}
+        />
+      </Card>
 
-            <Table
-              columns={columns}
-              dataSource={analysis.results}
-              rowKey="blogger_id"
-              loading={loading}
-              expandable={{ expandedRowRender }}
-              pagination={false}
+      {/* 每日竞猜分析 - 占据整行（下方） */}
+      <Card
+        title="每日竞猜分析"
+        extra={
+          <DatePicker
+            value={selectedDate}
+            onChange={setSelectedDate}
+            allowClear={false}
+          />
+        }
+      >
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Statistic
+              title="参与博主"
+              value={analysis.blogger_count}
             />
-          </Card>
-        </Col>
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="官方结果"
+              value={analysis.total_rounds}
+              suffix="/ 7轮"
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="日期"
+              value={analysis.date}
+            />
+          </Col>
+          <Col span={6}>
+            <div style={{ marginBottom: 8 }}>查看无竞猜博主</div>
+            <Select
+              placeholder="选择轮次"
+              style={{ width: 120 }}
+              onChange={showMissingBloggers}
+              options={[
+                { label: '第1轮', value: 1 },
+                { label: '第2轮', value: 2 },
+                { label: '第3轮', value: 3 },
+                { label: '第4轮', value: 4 },
+                { label: '第5轮', value: 5 },
+                { label: '第6轮', value: 6 },
+                { label: '第7轮', value: 7 }
+              ]}
+            />
+          </Col>
+        </Row>
 
-        <Col span={8}>
-          <Card
-            title="准确率排行榜"
-            extra={
-              <Radio.Group
-                value={range}
-                onChange={(e) => setRange(e.target.value)}
-                size="small"
-              >
-                <Radio.Button value="7d">7天</Radio.Button>
-                <Radio.Button value="30d">30天</Radio.Button>
-                <Radio.Button value="all">全部</Radio.Button>
-              </Radio.Group>
-            }
-          >
-            <Table
-              columns={leaderboardColumns}
-              dataSource={leaderboard}
-              rowKey="blogger_id"
-              pagination={false}
-              size="small"
-            />
-          </Card>
-        </Col>
-      </Row>
+        <Table
+          columns={columns}
+          dataSource={analysis.results}
+          rowKey="blogger_id"
+          loading={loading}
+          expandable={{ expandedRowRender }}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 条`,
+            pageSizeOptions: ['10', '20', '50']
+          }}
+        />
+      </Card>
 
       {/* 缺失博主弹窗 */}
       <Modal
@@ -378,7 +411,29 @@ function GuessAnalysis() {
                       </div>
                     )
                   }
-                  title={blogger.nickname}
+                  title={
+                    blogger.profile_url ? (
+                      <a
+                        href={blogger.profile_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1890ff', textDecoration: 'none' }}
+                      >
+                        {blogger.nickname}
+                      </a>
+                    ) : blogger.weibo_uid ? (
+                      <a
+                        href={`https://weibo.com/u/${blogger.weibo_uid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#1890ff', textDecoration: 'none' }}
+                      >
+                        {blogger.nickname}
+                      </a>
+                    ) : (
+                      <span style={{ color: '#666' }}>{blogger.nickname}</span>
+                    )
+                  }
                   description={blogger.description || '暂无描述'}
                 />
               </List.Item>

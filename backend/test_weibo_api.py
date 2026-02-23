@@ -1,97 +1,66 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+"""
+测试微博API
+"""
 import sys
-sys.path.insert(0, r'f:\trace\work-space\yys-show\backend')
+import os
 
-from app import create_app
-from app.models import SystemConfig
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import requests
 import json
 
-app = create_app('development')
-
-with app.app_context():
-    print("=" * 60)
-    print("测试各种微博API")
-    print("=" * 60)
-
-    # 获取Cookie
-    cookie = SystemConfig.get_value('weibo_cookie', '')
-    print(f"\nCookie长度: {len(cookie)}")
-
+def test_weibo_api():
+    """测试微博API"""
+    
+    # 博主UID
+    uid = '1240631574'
+    
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cookie': cookie,
-        'Referer': 'https://weibo.com/',
         'Accept': 'application/json, text/plain, */*',
-        'X-Requested-With': 'XMLHttpRequest'
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Referer': 'https://weibo.com/',
     }
-
-    uid = '1240631574'
-    session = requests.Session()
-
-    # API 1: 用户微博列表
-    apis = [
-        {
-            'name': '用户微博列表 (profile/statuses)',
-            'url': 'https://weibo.com/ajax/profile/statuses',
-            'params': {'uid': uid, 'page': 1, 'feature': 0}
-        },
-        {
-            'name': '用户微博列表 (statuses/mymblog)',
-            'url': 'https://weibo.com/ajax/statuses/mymblog',
-            'params': {'uid': uid, 'page': 1, 'feature': 0}
-        },
-        {
-            'name': '用户微博时间线 (statuses/container_timeline)',
-            'url': 'https://weibo.com/ajax/statuses/container_timeline',
-            'params': {'containerid': f'107603{uid}', 'page': 1}
-        },
-        {
-            'name': '用户微博时间线 (friends)',
-            'url': 'https://weibo.com/ajax/statuses/friends',
-            'params': {'page': 1, 'uid': uid}
-        }
-    ]
-
-    for api in apis:
-        print(f"\n{'-'*60}")
-        print(f"测试: {api['name']}")
-        print(f"URL: {api['url']}")
-        print(f"参数: {api['params']}")
-
-        try:
-            response = session.get(api['url'], headers=headers, params=api['params'], timeout=30)
-            print(f"状态码: {response.status_code}")
-
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    print(f"响应ok: {data.get('ok')}")
-
-                    if data.get('ok') == 1:
-                        # 检查是否有微博数据
-                        if 'data' in data:
-                            data_obj = data['data']
-                            if isinstance(data_obj, list):
-                                print(f"找到列表数据，长度: {len(data_obj)}")
-                                if data_obj and len(data_obj) > 0:
-                                    print(f"第一条数据类型: {type(data_obj[0])}")
-                                    if isinstance(data_obj[0], dict):
-                                        print(f"第一条数据键: {list(data_obj[0].keys())[:5]}")
-                            elif isinstance(data_obj, dict):
-                                print(f"找到对象数据，键: {list(data_obj.keys())}")
-                                if 'list' in data_obj:
-                                    print(f"list字段长度: {len(data_obj['list'])}")
-                                if 'statuses' in data_obj:
-                                    print(f"statuses字段长度: {len(data_obj['statuses'])}")
-                                if 'cards' in data_obj:
-                                    print(f"cards字段长度: {len(data_obj['cards'])}")
-                except Exception as e:
-                    print(f"解析JSON失败: {e}")
+    
+    url = 'https://weibo.com/ajax/statuses/mymblog'
+    params = {
+        'uid': uid,
+        'page': 1,
+        'feature': 0
+    }
+    
+    print(f"请求URL: {url}")
+    print(f"参数: {params}")
+    
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"\n响应状态码: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"响应ok字段: {data.get('ok')}")
+            
+            if data.get('ok') == 1:
+                statuses = data.get('data', {}).get('list', [])
+                print(f"\n获取到 {len(statuses)} 条微博")
+                
+                for i, status in enumerate(statuses[:5]):
+                    weibo_id = status.get('id')
+                    created_at = status.get('created_at')
+                    text = status.get('text', '')[:100]
+                    
+                    print(f"\n[{i+1}] 微博ID: {weibo_id}")
+                    print(f"    创建时间: {created_at}")
+                    print(f"    内容: {text}...")
             else:
-                print(f"请求失败: {response.status_code}")
-        except Exception as e:
-            print(f"请求异常: {e}")
+                print(f"API返回错误: {data.get('msg', '未知错误')}")
+                print(f"完整响应: {json.dumps(data, ensure_ascii=False, indent=2)[:500]}")
+        else:
+            print(f"请求失败: HTTP {response.status_code}")
+            print(f"响应内容: {response.text[:500]}")
+            
+    except Exception as e:
+        print(f"请求异常: {e}")
 
-    print("\n" + "=" * 60)
+if __name__ == '__main__':
+    test_weibo_api()

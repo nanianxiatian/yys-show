@@ -24,10 +24,9 @@ class GuessAnalyzerService:
         official_results = OfficialResult.query.filter_by(guess_date=target_date).all()
         official_map = {r.guess_round: r.result for r in official_results}
         
-        # 获取当天所有博主的预测
+        # 获取当天所有博主的预测（不再限制is_guess_related）
         blogger_predictions = WeiboPost.query.filter_by(
-            guess_date=target_date,
-            is_guess_related=True
+            guess_date=target_date
         ).all()
         
         # 按博主分组统计
@@ -112,8 +111,8 @@ class GuessAnalyzerService:
             (WeiboPost.guess_date == OfficialResult.guess_date) & 
             (WeiboPost.guess_round == OfficialResult.guess_round)
         ).filter(
-            WeiboPost.blogger_id == blogger_id,
-            WeiboPost.is_guess_related == True
+            WeiboPost.blogger_id == blogger_id
+            # 不再限制is_guess_related
         )
         
         if start_date:

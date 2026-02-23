@@ -311,7 +311,7 @@ class WeiboCrawler:
             print(f"[DEBUG] 获取到 {len(statuses)} 条微博")
             
             for status in statuses[:count]:
-                weibo_info = self._parse_weibo_item(status)
+                weibo_info = self._parse_weibo_item(status, uid)
                 if weibo_info:
                     weibo_list.append(weibo_info)
             
@@ -439,19 +439,28 @@ class WeiboCrawler:
         print(f"[DEBUG] 找到 {len(filtered_weibo)} 条符合条件的微博")
         return filtered_weibo
     
-    def _parse_weibo_item(self, status):
+    def _parse_weibo_item(self, status, expected_uid=None):
         """
         解析微博数据
         
         Args:
             status: 微博原始数据
+            expected_uid: 期望的博主UID（用于验证微博是否属于该博主）
             
         Returns:
-            dict: 解析后的微博信息
+            dict: 解析后的微博信息，如果不匹配则返回None
         """
         try:
             # 获取微博ID
             weibo_id = str(status.get('id'))
+            
+            # 如果提供了expected_uid，验证微博是否属于该博主
+            if expected_uid:
+                user = status.get('user', {})
+                actual_uid = str(user.get('id', ''))
+                if actual_uid != str(expected_uid):
+                    print(f"[DEBUG] 跳过非目标博主的微博: {weibo_id}, 实际UID: {actual_uid}, 期望UID: {expected_uid}")
+                    return None
             
             # 获取微博内容
             text = status.get('text', '')

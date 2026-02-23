@@ -466,55 +466,56 @@ class WeiboSpiderService:
             print(f"[SPIDER] 博主 {blogger.nickname} 在指定时间段没有微博")
             return 0
         
-        print(f"[SPIDER] 获取到 {len(weibo_list)} 条微博，筛选对弈竞猜相关微博")
+        print(f"[SPIDER] 获取到 {len(weibo_list)} 条微博")
         
-        # 筛选出对弈竞猜相关的微博（使用所有在时间范围内的微博）
-        guess_weibos = []
-        for weibo in weibo_list:
-            parsed = GuessParser.parse_weibo(weibo)
-            print(f"[SPIDER] 检查微博 {weibo['weibo_id']}: 相关={parsed['is_guess_related']}, 预测={parsed['guess_prediction']}, 内容={weibo['content'][:30]}...")
-            if parsed['is_guess_related']:
-                guess_weibos.append((weibo, parsed))
-        
-        if not guess_weibos:
-            print(f"[SPIDER] 博主 {blogger.nickname} 在指定时间段没有竞猜相关微博")
-            return 0
-        
-        # 取最新的一条符合逻辑的微博（列表已按时间排序）
-        latest_weibo, parsed = guess_weibos[0]
-        print(f"[SPIDER] 选择最新竞猜微博: {latest_weibo['weibo_id']}, 预测={parsed['guess_prediction']}")
-        
-        # 检查是否已存在
-        existing = WeiboPost.query.filter_by(weibo_id=latest_weibo['weibo_id']).first()
-        if existing:
-            print(f"[SPIDER] 微博已存在: {latest_weibo['weibo_id']}")
-            return 0
-        
+        # 保存所有微博（不再筛选竞猜相关）
         import json
-        pic_urls = latest_weibo.get('pic_urls', [])
-        pic_urls_json = json.dumps(pic_urls) if pic_urls else None
-        weibo_url = f"https://weibo.com/{blogger.weibo_uid}/{latest_weibo['weibo_id']}"
+        saved_count = 0
         
-        post = WeiboPost(
-            blogger_id=blogger.id,
-            weibo_id=latest_weibo['weibo_id'],
-            content=latest_weibo['content'],
-            guess_prediction=parsed['guess_prediction'],
-            guess_round=parsed['guess_round'],
-            guess_date=parsed['guess_date'],
-            publish_time=latest_weibo['publish_time'],
-            reposts_count=latest_weibo['reposts_count'],
-            comments_count=latest_weibo['comments_count'],
-            attitudes_count=latest_weibo['attitudes_count'],
-            is_guess_related=parsed['is_guess_related'],
-            pic_urls=pic_urls_json,
-            weibo_url=weibo_url
-        )
-        db.session.add(post)
-        db.session.commit()
+        for weibo in weibo_list:
+            # 检查是否已存在
+            existing = WeiboPost.query.filter_by(weibo_id=weibo['weibo_id']).first()
+            if existing:
+                print(f"[SPIDER] 微博已存在，跳过: {weibo['weibo_id']}")
+                continue
+            
+            # 解析微博（用于获取预测、轮次等信息）
+            parsed = GuessParser.parse_weibo(weibo)
+            print(f"[SPIDER] 处理微博 {weibo['weibo_id']}: 预测={parsed['guess_prediction']}, 内容={weibo['content'][:30]}...")
+            
+            pic_urls = weibo.get('pic_urls', [])
+            pic_urls_json = json.dumps(pic_urls) if pic_urls else None
+            weibo_url = f"https://weibo.com/{blogger.weibo_uid}/{weibo['weibo_id']}"
+            
+            # 如果有多条微博，标记为multiple
+            prediction = parsed['guess_prediction']
+            if len(weibo_list) > 1:
+                prediction = 'multiple'
+                print(f"[SPIDER] 博主 {blogger.nickname} 有多条微博，标记为multiple")
+            
+            post = WeiboPost(
+                blogger_id=blogger.id,
+                weibo_id=weibo['weibo_id'],
+                content=weibo['content'],
+                guess_prediction=prediction,
+                guess_round=parsed['guess_round'],
+                guess_date=parsed['guess_date'],
+                publish_time=weibo['publish_time'],
+                reposts_count=weibo['reposts_count'],
+                comments_count=weibo['comments_count'],
+                attitudes_count=weibo['attitudes_count'],
+                is_guess_related=parsed['is_guess_related'],
+                pic_urls=pic_urls_json,
+                weibo_url=weibo_url
+            )
+            db.session.add(post)
+            db.session.commit()
+            
+            print(f"[SPIDER] 保存微博: {weibo['weibo_id']}, 预测={prediction}")
+            saved_count += 1
         
-        print(f"[SPIDER] 保存微博: {latest_weibo['weibo_id']}")
-        return 1
+        print(f"[SPIDER] 博主 {blogger.nickname} 共保存 {saved_count} 条微博")
+        return saved_count
     
     def _spider_blogger(self, blogger):
         """

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Card, DatePicker, Radio, Button, Table, Tag, message, Space, Modal, Form, Input
+  Card, DatePicker, Radio, Button, Table, Tag, message, Space, Modal, Form, Input, Row, Col, Select
 } from 'antd'
 import { SaveOutlined, PlusOutlined } from '@ant-design/icons'
-import { officialApi } from '../../services/api'
+import { officialApi, shikigamiManagerApi } from '../../services/api'
 import dayjs from 'dayjs'
 
 const { TextArea } = Input
@@ -16,13 +16,30 @@ function OfficialInput() {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingRound, setEditingRound] = useState(null)
   const [form] = Form.useForm()
+  const [shikigamiOptions, setShikigamiOptions] = useState([])
 
   // 7轮竞猜
   const rounds = [1, 2, 3, 4, 5, 6, 7]
 
   useEffect(() => {
     fetchResults()
+    fetchShikigamiOptions()
   }, [selectedDate])
+
+  const fetchShikigamiOptions = async () => {
+    try {
+      const res = await shikigamiManagerApi.getAll()
+      if (res.success) {
+        const options = res.data.map(s => ({
+          label: s.name,
+          value: s.name
+        }))
+        setShikigamiOptions(options)
+      }
+    } catch (error) {
+      console.error('获取式神列表失败', error)
+    }
+  }
 
   const fetchResults = async () => {
     try {
@@ -69,7 +86,19 @@ function OfficialInput() {
       result: record.result,
       left_team: record.left_team,
       right_team: record.right_team,
-      description: record.description
+      description: record.description,
+      // 左侧式神
+      left_shikigami_1: record.left_shikigami_1,
+      left_shikigami_2: record.left_shikigami_2,
+      left_shikigami_3: record.left_shikigami_3,
+      left_shikigami_4: record.left_shikigami_4,
+      left_shikigami_5: record.left_shikigami_5,
+      // 右侧式神
+      right_shikigami_1: record.right_shikigami_1,
+      right_shikigami_2: record.right_shikigami_2,
+      right_shikigami_3: record.right_shikigami_3,
+      right_shikigami_4: record.right_shikigami_4,
+      right_shikigami_5: record.right_shikigami_5
     })
     setModalVisible(true)
   }
@@ -242,11 +271,61 @@ function OfficialInput() {
             <Input placeholder="可选，如：鬼切队" />
           </Form.Item>
 
+          {/* 左侧式神 */}
+          <Form.Item label="左侧式神">
+            <Row gutter={8}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Col span={12} key={`left_${i}`}>
+                  <Form.Item
+                    name={`left_shikigami_${i}`}
+                    noStyle
+                  >
+                    <Select
+                      placeholder={`式神${i}`}
+                      options={shikigamiOptions}
+                      showSearch
+                      allowClear
+                      filterOption={(input, option) =>
+                        option?.label?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      style={{ width: '100%', marginBottom: 8 }}
+                    />
+                  </Form.Item>
+                </Col>
+              ))}
+            </Row>
+          </Form.Item>
+
           <Form.Item
             name="right_team"
             label="右侧阵营"
           >
             <Input placeholder="可选，如：酒吞队" />
+          </Form.Item>
+
+          {/* 右侧式神 */}
+          <Form.Item label="右侧式神">
+            <Row gutter={8}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Col span={12} key={`right_${i}`}>
+                  <Form.Item
+                    name={`right_shikigami_${i}`}
+                    noStyle
+                  >
+                    <Select
+                      placeholder={`式神${i}`}
+                      options={shikigamiOptions}
+                      showSearch
+                      allowClear
+                      filterOption={(input, option) =>
+                        option?.label?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      style={{ width: '100%', marginBottom: 8 }}
+                    />
+                  </Form.Item>
+                </Col>
+              ))}
+            </Row>
           </Form.Item>
 
           <Form.Item

@@ -8,13 +8,15 @@ from .official_result import OfficialResult
 from .blogger_stats import BloggerStats
 from .system_config import SystemConfig
 from .spider_log import SpiderLog
+from .shikigami import Shikigami
 
 __all__ = [
     'db',
     'Blogger',
-    'WeiboPost', 
+    'WeiboPost',
     'OfficialResult',
     'BloggerStats',
     'SystemConfig',
-    'SpiderLog'
+    'SpiderLog',
+    'Shikigami'
 ]

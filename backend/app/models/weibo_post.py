@@ -11,9 +11,9 @@ class WeiboPost(db.Model):
     weibo_id = db.Column(db.String(50), nullable=False, unique=True, comment='微博ID')
     content = db.Column(db.Text, nullable=False, comment='微博内容')
     guess_prediction = db.Column(
-        db.Enum('left', 'right', 'unknown', name='prediction_enum'),
+        db.Enum('left', 'right', 'unknown', 'multiple', name='prediction_enum'),
         default='unknown',
-        comment='预测结果:左/右/未知'
+        comment='预测结果:左/右/未知/多条'
     )
     guess_round = db.Column(db.Integer, comment='竞猜轮次(1-7)')
     guess_date = db.Column(db.Date, comment='竞猜日期')
@@ -64,7 +64,8 @@ class WeiboPost(db.Model):
         mapping = {
             'left': '左',
             'right': '右',
-            'unknown': '未知'
+            'unknown': '未知',
+            'multiple': '多条'
         }
         return mapping.get(self.guess_prediction, '未知')
     

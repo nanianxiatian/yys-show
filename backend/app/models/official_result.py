@@ -16,6 +16,18 @@ class OfficialResult(db.Model):
     )
     left_team = db.Column(db.String(200), comment='左侧阵营描述')
     right_team = db.Column(db.String(200), comment='右侧阵营描述')
+    # 左侧式神（5个）
+    left_shikigami_1 = db.Column(db.String(100), comment='左侧式神1')
+    left_shikigami_2 = db.Column(db.String(100), comment='左侧式神2')
+    left_shikigami_3 = db.Column(db.String(100), comment='左侧式神3')
+    left_shikigami_4 = db.Column(db.String(100), comment='左侧式神4')
+    left_shikigami_5 = db.Column(db.String(100), comment='左侧式神5')
+    # 右侧式神（5个）
+    right_shikigami_1 = db.Column(db.String(100), comment='右侧式神1')
+    right_shikigami_2 = db.Column(db.String(100), comment='右侧式神2')
+    right_shikigami_3 = db.Column(db.String(100), comment='右侧式神3')
+    right_shikigami_4 = db.Column(db.String(100), comment='右侧式神4')
+    right_shikigami_5 = db.Column(db.String(100), comment='右侧式神5')
     description = db.Column(db.Text, comment='备注')
     created_by = db.Column(db.String(100), comment='录入人')
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -31,6 +43,18 @@ class OfficialResult(db.Model):
             'result_text': self.get_result_text(),
             'left_team': self.left_team,
             'right_team': self.right_team,
+            # 左侧式神
+            'left_shikigami_1': self.left_shikigami_1,
+            'left_shikigami_2': self.left_shikigami_2,
+            'left_shikigami_3': self.left_shikigami_3,
+            'left_shikigami_4': self.left_shikigami_4,
+            'left_shikigami_5': self.left_shikigami_5,
+            # 右侧式神
+            'right_shikigami_1': self.right_shikigami_1,
+            'right_shikigami_2': self.right_shikigami_2,
+            'right_shikigami_3': self.right_shikigami_3,
+            'right_shikigami_4': self.right_shikigami_4,
+            'right_shikigami_5': self.right_shikigami_5,
             'description': self.description,
             'created_by': self.created_by,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S') if self.created_at else None,

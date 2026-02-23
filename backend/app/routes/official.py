@@ -86,6 +86,18 @@ def create_official_result():
         created_by=data.get('created_by', 'admin')
     )
     
+    # 设置左侧式神
+    for i in range(1, 6):
+        field = f'left_shikigami_{i}'
+        if field in data:
+            setattr(result, field, data[field])
+    
+    # 设置右侧式神
+    for i in range(1, 6):
+        field = f'right_shikigami_{i}'
+        if field in data:
+            setattr(result, field, data[field])
+    
     db.session.add(result)
     db.session.commit()
     
@@ -117,6 +129,18 @@ def update_official_result(result_id):
         result.right_team = data['right_team']
     if 'description' in data:
         result.description = data['description']
+    
+    # 更新左侧式神
+    for i in range(1, 6):
+        field = f'left_shikigami_{i}'
+        if field in data:
+            setattr(result, field, data[field])
+    
+    # 更新右侧式神
+    for i in range(1, 6):
+        field = f'right_shikigami_{i}'
+        if field in data:
+            setattr(result, field, data[field])
     
     db.session.commit()
     

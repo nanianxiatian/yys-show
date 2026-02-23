@@ -239,7 +239,12 @@ def sync_by_time_range():
     try:
         start_time, end_time = time_slot.split('-')
         start_datetime = f"{date} {start_time}:00"
-        end_datetime = f"{date} {end_time}:00"
+        
+        # 处理24:00的情况（转换为23:59:59）
+        if end_time == '24:00':
+            end_datetime = f"{date} 23:59:59"
+        else:
+            end_datetime = f"{date} {end_time}:00"
     except Exception:
         return jsonify({
             'success': False,

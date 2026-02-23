@@ -136,9 +136,8 @@ def get_guess_history():
         OfficialResult,
         (WeiboPost.guess_date == OfficialResult.guess_date) &
         (WeiboPost.guess_round == OfficialResult.guess_round)
-    ).filter(
-        WeiboPost.is_guess_related == True
     )
+    # 不再限制is_guess_related，统计所有微博
     
     if blogger_id:
         query = query.filter(WeiboPost.blogger_id == blogger_id)

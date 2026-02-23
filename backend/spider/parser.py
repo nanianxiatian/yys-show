@@ -248,8 +248,9 @@ class GuessParser:
         
         is_related = cls.is_guess_related(content)
         prediction = cls.parse_prediction(content) if is_related else 'unknown'
-        guess_round = cls.parse_guess_round(publish_time, content) if is_related else None
-        guess_date = cls.parse_guess_date(publish_time) if is_related else None
+        # 无论是否竞猜相关，都解析轮次和日期（基于发布时间）
+        guess_round = cls.parse_guess_round(publish_time, content)
+        guess_date = cls.parse_guess_date(publish_time)
         
         return {
             'is_guess_related': is_related,

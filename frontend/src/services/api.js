@@ -74,4 +74,21 @@ export const systemApi = {
   getStats: () => api.get('/system/stats')
 }
 
+// 式神分析API
+export const shikigamiApi = {
+  getAnalysis: (params) => api.get('/shikigami/analysis', { params }),
+  getList: () => api.get('/shikigami/list')
+}
+
+// 式神管理API
+export const shikigamiManagerApi = {
+  getList: (params) => api.get('/shikigami-manager', { params }),
+  getAll: () => api.get('/shikigami-manager/all'),
+  getById: (id) => api.get(`/shikigami-manager/${id}`),
+  create: (data) => api.post('/shikigami-manager', data),
+  update: (id, data) => api.put(`/shikigami-manager/${id}`, data),
+  delete: (id) => api.delete(`/shikigami-manager/${id}`),
+  batchCreate: (data) => api.post('/shikigami-manager/batch', data)
+}
+
 export default api
