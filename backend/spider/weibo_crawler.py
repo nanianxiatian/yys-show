@@ -1,6 +1,7 @@
 import requests
 import re
 import json
+import time
 from datetime import datetime
 from urllib.parse import quote
 from bs4 import BeautifulSoup
@@ -42,7 +43,8 @@ class WeiboCrawler:
             cookie: Cookie字符串
         """
         self.cookie = cookie
-        self.session.headers.update({'Cookie': cookie})
+        # 直接设置Cookie，而不是update，避免累积
+        self.session.headers['Cookie'] = cookie
     
     def get_user_info(self, nickname):
         """
@@ -289,8 +291,21 @@ class WeiboCrawler:
                 'feature': 0  # 全部微博
             }
             
+            # 添加延迟，避免请求过于频繁
+            time.sleep(1.0)
+            
             print(f"[DEBUG] 获取微博列表 - UID: {uid}, URL: {url}")
-            response = self.session.get(url, headers=self.headers, params=params, timeout=30)
+            
+            # 为每个请求创建新的session，避免HTTP 414错误
+            session = requests.Session()
+            # 复制基础headers
+            request_headers = self.headers.copy()
+            # 添加cookie
+            if self.cookie:
+                request_headers['Cookie'] = self.cookie
+            
+            response = session.get(url, headers=request_headers, params=params, timeout=30)
+            session.close()
             
             print(f"[DEBUG] 微博列表响应状态码: {response.status_code}")
             
@@ -310,10 +325,14 @@ class WeiboCrawler:
             statuses = data.get('data', {}).get('list', [])
             print(f"[DEBUG] 获取到 {len(statuses)} 条微博")
             
-            for status in statuses[:count]:
+            # 不过早切片，先解析所有数据，再限制返回数量
+            # 这样可以避免因为过滤掉非目标博主微博而导致有效数据不足
+            for status in statuses:
                 weibo_info = self._parse_weibo_item(status, uid)
                 if weibo_info:
                     weibo_list.append(weibo_info)
+                    if len(weibo_list) >= count:
+                        break
             
             return weibo_list
             
@@ -365,8 +384,14 @@ class WeiboCrawler:
         
         # 解析时间范围
         try:
-            start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+            if isinstance(start_time, str):
+                start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+            else:
+                start_dt = start_time
+            if isinstance(end_time, str):
+                end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+            else:
+                end_dt = end_time
         except Exception as e:
             print(f"[ERROR] 时间格式错误: {str(e)}")
             return []
@@ -376,9 +401,10 @@ class WeiboCrawler:
         # 获取多页微博数据
         all_weibo = []
         found_in_range = False  # 标记是否已在时间范围内找到微博
+        consecutive_out_of_range = 0  # 连续多少页没有在时间范围内的微博
         
         for page in range(1, 11):  # 最多获取10页(200条)，确保能覆盖到较早时间的微博
-            weibo_list = self.get_user_weibo_list(uid, page=page, count=20)
+            weibo_list = self.get_user_weibo_list(uid, page=page, count=50)  # 增加count以获取更多数据
             if not weibo_list:
                 break
             
@@ -390,6 +416,7 @@ class WeiboCrawler:
                     if start_dt <= publish_time <= end_dt:
                         page_has_in_range = True
                         found_in_range = True
+                        consecutive_out_of_range = 0  # 重置计数器
                         break
             
             all_weibo.extend(weibo_list)
@@ -397,8 +424,8 @@ class WeiboCrawler:
             # 智能停止逻辑：
             # 注意：API返回的数据可能有置顶微博，不按时间排序，需要基于所有数据的整体时间范围判断
             # 1. 如果当前页有在时间范围内的微博，继续获取下一页（可能还有更多）
-            # 2. 如果已经找到过时间范围内的微博，且当前页所有微博都早于开始时间，停止
-            # 3. 计算当前已获取的所有微博的最早时间，如果早于开始时间且没找到目标，继续获取
+            # 2. 如果连续多页没有在时间范围内的微博，且已经找到过目标，停止
+            # 3. 如果当前页所有微博都早于开始时间，且已经获取了足够页数，停止
             
             # 获取当前页所有微博的时间
             page_times = [w.get('publish_time') for w in weibo_list if w.get('publish_time') and isinstance(w.get('publish_time'), datetime)]
@@ -407,14 +434,18 @@ class WeiboCrawler:
                 page_oldest = min(page_times)  # 当前页最早的微博时间
                 page_newest = max(page_times)  # 当前页最新的微博时间
                 
-                # 情况1：已经找到过目标微博，且当前页最早的也早于开始时间，可以停止了
-                if found_in_range and page_oldest < start_dt:
-                    print(f"[DEBUG] 已找到目标日期微博，且当前页最早时间({page_oldest})早于开始时间，停止翻页")
+                if not page_has_in_range:
+                    consecutive_out_of_range += 1
+                
+                # 情况1：已经连续2页没有在时间范围内的微博，且之前找到过目标，停止
+                # 给2页的缓冲，避免因为置顶微博等非时间排序内容导致过早停止
+                if found_in_range and consecutive_out_of_range >= 2:
+                    print(f"[DEBUG] 已连续{consecutive_out_of_range}页没有在时间范围内的微博，停止翻页")
                     break
                 
-                # 情况2：当前页所有微博都早于开始时间，且没有置顶微博干扰（最新也早于开始时间）
-                if page_newest < start_dt:
-                    print(f"[DEBUG] 当前页所有微博时间({page_newest} ~ {page_oldest})都早于开始时间，停止翻页")
+                # 情况2：当前页所有微博都早于开始时间，且已经获取了至少3页数据，停止
+                if page_newest < start_dt and page >= 3:
+                    print(f"[DEBUG] 当前页所有微博时间({page_newest} ~ {page_oldest})都早于开始时间，且已获取{page}页数据，停止翻页")
                     break
         
         # 过滤时间范围内的微博
@@ -455,7 +486,13 @@ class WeiboCrawler:
             weibo_id = str(status.get('id'))
             
             # 如果提供了expected_uid，验证微博是否属于该博主
+            # 注意：检查是否是转发微博(retweeted_status存在)，转发微博的user是原博主
             if expected_uid:
+                # 如果是转发微博，跳过（我们只关心博主自己发的微博）
+                if status.get('retweeted_status'):
+                    print(f"[DEBUG] 跳过转发微博: {weibo_id}")
+                    return None
+                
                 user = status.get('user', {})
                 actual_uid = str(user.get('id', ''))
                 if actual_uid != str(expected_uid):
@@ -614,12 +651,14 @@ class WeiboCrawler:
             bool: 是否有效
         """
         try:
-            url = f'{self.API_URL}/config'
-            response = self.session.get(url, headers=self.headers, timeout=10)
+            # 使用 profile/info API 验证 Cookie
+            url = f'{self.API_URL}/profile/info'
+            params = {'uid': '5705999765'}  # 使用夕水残阳的UID测试
+            response = self.session.get(url, headers=self.headers, params=params, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                return data.get('data', {}).get('login', False)
+                return data.get('ok') == 1
             
             return False
             

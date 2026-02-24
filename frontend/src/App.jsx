@@ -9,7 +9,8 @@ import {
   EditOutlined,
   SettingOutlined,
   FireOutlined,
-  CrownOutlined
+  CrownOutlined,
+  SafetyOutlined
 } from '@ant-design/icons'
 import Home from './pages/Home'
 import Bloggers from './pages/Bloggers'
@@ -19,6 +20,7 @@ import OfficialInput from './pages/OfficialInput'
 import JobManager from './pages/JobManager'
 import ShikigamiAnalysis from './pages/ShikigamiAnalysis'
 import ShikigamiManager from './pages/ShikigamiManager'
+import CookieManager from './pages/CookieManager'
 
 const { Header, Sider, Content } = Layout
 const { Title } = Typography
@@ -63,6 +65,11 @@ const menuItems = [
     key: '/jobs',
     icon: <SettingOutlined />,
     label: '定时任务管理',
+  },
+  {
+    key: '/cookie',
+    icon: <SafetyOutlined />,
+    label: 'Cookie管理',
   },
 ]
 
@@ -111,6 +118,7 @@ function AppContent({ collapsed, setCollapsed }) {
             <Route path="/shikigami-manager" element={<ShikigamiManager />} />
             <Route path="/official" element={<OfficialInput />} />
             <Route path="/jobs" element={<JobManager />} />
+            <Route path="/cookie" element={<CookieManager />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </Content>

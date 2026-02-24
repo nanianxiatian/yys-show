@@ -34,7 +34,28 @@ def get_guess_analysis():
 def get_leaderboard():
     """获取博主排行榜"""
     date_range = request.args.get('range', '7d')  # 7d, 30d, all
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
     
+    # 如果提供了自定义日期范围，优先使用
+    if start_date and end_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            leaderboard = GuessAnalyzerService.get_leaderboard_custom(start_date, end_date)
+            return jsonify({
+                'success': True,
+                'data': leaderboard,
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': end_date.strftime('%Y-%m-%d')
+            })
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': '日期格式错误，应为 YYYY-MM-DD'
+            }), 400
+    
+    # 使用预设范围
     if date_range not in ['7d', '30d', 'all']:
         return jsonify({
             'success': False,

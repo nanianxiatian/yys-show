@@ -14,7 +14,8 @@ const RARITY_OPTIONS = [
   { value: 'SR', label: 'SR', color: 'blue' },
   { value: 'SSR', label: 'SSR', color: 'purple' },
   { value: 'SP', label: 'SP', color: 'orange' },
-  { value: 'UR', label: 'UR', color: 'red' }
+  { value: 'UR', label: 'UR', color: 'red' },
+  { value: '素材', label: '素材', color: 'cyan' }
 ]
 
 function ShikigamiManager() {
@@ -23,6 +24,7 @@ function ShikigamiManager() {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingShikigami, setEditingShikigami] = useState(null)
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [selectedRarity, setSelectedRarity] = useState(undefined)
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 20,
@@ -32,16 +34,20 @@ function ShikigamiManager() {
 
   useEffect(() => {
     fetchShikigamis()
-  }, [pagination.current, pagination.pageSize, searchKeyword])
+  }, [pagination.current, pagination.pageSize, searchKeyword, selectedRarity])
 
   const fetchShikigamis = async () => {
     try {
       setLoading(true)
-      const res = await shikigamiManagerApi.getList({
+      const params = {
         page: pagination.current,
         per_page: pagination.pageSize,
         keyword: searchKeyword
-      })
+      }
+      if (selectedRarity) {
+        params.rarity = selectedRarity
+      }
+      const res = await shikigamiManagerApi.getList(params)
 
       if (res.success) {
         setShikigamis(res.data)
@@ -199,6 +205,22 @@ function ShikigamiManager() {
         title="式神管理"
         extra={
           <Space>
+            <Select
+              placeholder="筛选稀有度"
+              allowClear
+              style={{ width: 120 }}
+              value={selectedRarity}
+              onChange={(value) => {
+                setSelectedRarity(value)
+                setPagination({ ...pagination, current: 1 })
+              }}
+            >
+              {RARITY_OPTIONS.map(option => (
+                <Option key={option.value} value={option.value}>
+                  <Tag color={option.color}>{option.label}</Tag>
+                </Option>
+              ))}
+            </Select>
             <Input.Search
               placeholder="搜索式神名称"
               allowClear

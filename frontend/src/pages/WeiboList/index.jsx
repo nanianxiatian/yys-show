@@ -106,6 +106,63 @@ function WeiboList() {
     setTimeRangeModalVisible(true)
   }
 
+  // 轮询任务状态
+  const pollTaskStatus = async (taskId, bloggerName) => {
+    const maxAttempts = 60 // 最多轮询60次（约2分钟）
+    let attempts = 0
+    
+    const checkStatus = async () => {
+      try {
+        const res = await weiboApi.getSyncTaskStatus(taskId)
+        
+        if (!res.success) {
+          message.destroy()
+          message.error('获取任务状态失败')
+          setTimeRangeSyncing(false)
+          return
+        }
+        
+        const { status, result, error } = res.data
+        
+        if (status === 'completed') {
+          message.destroy()
+          const totalPosts = result?.total_posts || 0
+          message.success(`同步完成，共爬取 ${totalPosts} 条微博`)
+          fetchWeibosWithFilters(filters)
+          setTimeRangeSyncing(false)
+          return
+        } else if (status === 'failed') {
+          message.destroy()
+          message.error(`同步失败: ${error || '未知错误'}`)
+          setTimeRangeSyncing(false)
+          return
+        } else if (status === 'running' || status === 'pending') {
+          attempts++
+          if (attempts >= maxAttempts) {
+            message.destroy()
+            message.warning('同步任务仍在进行中，请稍后刷新页面查看结果')
+            setTimeRangeSyncing(false)
+            return
+          }
+          // 继续轮询
+          setTimeout(checkStatus, 2000)
+        }
+      } catch (error) {
+        console.error('轮询任务状态失败:', error)
+        attempts++
+        if (attempts >= maxAttempts) {
+          message.destroy()
+          message.warning('同步任务仍在进行中，请稍后刷新页面查看结果')
+          setTimeRangeSyncing(false)
+          return
+        }
+        setTimeout(checkStatus, 2000)
+      }
+    }
+    
+    checkStatus()
+  }
+
   // 执行时间段同步
   const handleConfirmTimeRangeSync = async () => {
     if (!timeRangeDate || !timeRangeSlot) {
@@ -116,26 +173,31 @@ function WeiboList() {
     try {
       setTimeRangeSyncing(true)
       setTimeRangeModalVisible(false)
-      message.loading('正在同步指定时间段数据...', 0)
+      message.loading('正在创建同步任务...', 0)
       
       const res = await weiboApi.syncByTimeRange({
         blogger_id: timeRangeBloggerId,
         date: timeRangeDate.format('YYYY-MM-DD'),
-        time_slot: timeRangeSlot
+        time_slot: timeRangeSlot,
+        async: true // 启用异步模式
       })
       
-      message.destroy()
-      
-      if (res.success) {
-        message.success(`同步完成，共爬取 ${res.data.total_posts} 条微博`)
-        fetchWeibosWithFilters(filters)
+      if (res.success && res.data.task_id) {
+        message.destroy() // 关闭第一个提示框
+        message.loading('同步任务进行中，请稍候...', 0)
+        // 开始轮询任务状态
+        const bloggerName = timeRangeBloggerId 
+          ? bloggers.find(b => b.id === timeRangeBloggerId)?.nickname 
+          : '全部博主'
+        pollTaskStatus(res.data.task_id, bloggerName)
       } else {
-        message.error(res.message)
+        message.destroy()
+        message.error(res.message || '创建同步任务失败')
+        setTimeRangeSyncing(false)
       }
     } catch (error) {
       message.destroy()
       message.error('同步失败')
-    } finally {
       setTimeRangeSyncing(false)
     }
   }

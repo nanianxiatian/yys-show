@@ -36,6 +36,7 @@ export const weiboApi = {
   batchDelete: (ids) => api.post('/weibo/batch-delete', { ids }),
   syncAll: (bloggerId) => api.post('/weibo/sync-all', { blogger_id: bloggerId }),
   syncByTimeRange: (data) => api.post('/weibo/sync-time-range', data),
+  getSyncTaskStatus: (taskId) => api.get(`/weibo/sync-task/${taskId}`),
   getLogs: (params) => api.get('/weibo/spider-logs', { params }),
   updatePrediction: (id, prediction) => api.put(`/weibo/${id}/prediction`, { prediction })
 }

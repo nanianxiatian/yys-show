@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import {
   Card, DatePicker, Table, Tag, Row, Col, Statistic, Radio, message, Select, Button, Modal, List
 } from 'antd'
@@ -23,6 +23,12 @@ function GuessAnalysis() {
   const [allBloggers, setAllBloggers] = useState([])
   const [missingModalVisible, setMissingModalVisible] = useState(false)
   const [missingBloggers, setMissingBloggers] = useState([])
+  // 博主筛选状态
+  const [analysisBloggerFilter, setAnalysisBloggerFilter] = useState(null)
+  const [leaderboardBloggerFilter, setLeaderboardBloggerFilter] = useState(null)
+  // 排行榜时间筛选状态 - 默认 2026-02-17 到 2026-02-23
+  const [leaderboardStartDate, setLeaderboardStartDate] = useState(dayjs('2026-02-17'))
+  const [leaderboardEndDate, setLeaderboardEndDate] = useState(dayjs('2026-02-23'))
 
   useEffect(() => {
     fetchAnalysis()
@@ -31,7 +37,7 @@ function GuessAnalysis() {
 
   useEffect(() => {
     fetchLeaderboard()
-  }, [range])
+  }, [leaderboardStartDate, leaderboardEndDate])
 
   const fetchAllBloggers = async () => {
     try {
@@ -95,16 +101,25 @@ function GuessAnalysis() {
     }
   }
 
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
-      const res = await guessApi.getLeaderboard({ range })
+      const params = {
+        start_date: leaderboardStartDate.format('YYYY-MM-DD'),
+        end_date: leaderboardEndDate.format('YYYY-MM-DD'),
+        _t: Date.now() // 添加时间戳防止缓存
+      }
+      console.log('获取排行榜参数:', params)
+      const res = await guessApi.getLeaderboard(params)
+      console.log('获取排行榜结果条数:', res.data?.length)
+      console.log('获取排行榜第一条:', res.data?.[0])
       if (res.success) {
         setLeaderboard(res.data)
       }
     } catch (error) {
+      console.error('获取排行榜失败:', error)
       message.error('获取排行榜失败')
     }
-  }
+  }, [leaderboardStartDate, leaderboardEndDate])
 
   const expandedRowRender = (record) => {
     const columns = [
@@ -291,13 +306,72 @@ function GuessAnalysis() {
     }
   ]
 
+  // 筛选后的每日竞猜分析数据
+  const filteredAnalysisResults = analysisBloggerFilter
+    ? analysis.results.filter(r => r.blogger_id === analysisBloggerFilter)
+    : analysis.results
+
+  // 筛选后的排行榜数据
+  const filteredLeaderboard = leaderboardBloggerFilter
+    ? leaderboard.filter(l => l.blogger_id === leaderboardBloggerFilter)
+    : leaderboard
+
+  // 博主筛选选项
+  const bloggerFilterOptions = allBloggers.map(b => ({
+    label: b.nickname,
+    value: b.id
+  }))
+
   return (
     <div>
       {/* 准确率排行榜 - 占据整行（上方） */}
-      <Card title="准确率排行榜" style={{ marginBottom: 16 }}>
+      <Card
+        title={`准确率排行榜 (${leaderboardStartDate.format('MM-DD')} 至 ${leaderboardEndDate.format('MM-DD')})`}
+        extra={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <DatePicker
+              value={leaderboardStartDate}
+              onChange={(date) => {
+                console.log('开始日期变化:', date?.format('YYYY-MM-DD'))
+                setLeaderboardStartDate(date)
+              }}
+              allowClear={false}
+              size="small"
+              style={{ width: 130 }}
+            />
+            <span>至</span>
+            <DatePicker
+              value={leaderboardEndDate}
+              onChange={(date) => {
+                console.log('结束日期变化:', date?.format('YYYY-MM-DD'))
+                setLeaderboardEndDate(date)
+              }}
+              allowClear={false}
+              size="small"
+              style={{ width: 130 }}
+            />
+            <Button size="small" onClick={fetchLeaderboard}>刷新</Button>
+            <Select
+              placeholder="筛选博主"
+              style={{ width: 120 }}
+              allowClear
+              showSearch
+              size="small"
+              filterOption={(input, option) =>
+                option.label.toLowerCase().includes(input.toLowerCase())
+              }
+              options={bloggerFilterOptions}
+              value={leaderboardBloggerFilter}
+              onChange={setLeaderboardBloggerFilter}
+            />
+          </div>
+        }
+        style={{ marginBottom: 16 }}
+      >
         <Table
+          key={`${leaderboardStartDate.format('YYYYMMDD')}-${leaderboardEndDate.format('YYYYMMDD')}`}
           columns={leaderboardColumns}
-          dataSource={leaderboard}
+          dataSource={filteredLeaderboard}
           rowKey="blogger_id"
           pagination={{
             pageSize: 10,
@@ -314,18 +388,32 @@ function GuessAnalysis() {
       <Card
         title="每日竞猜分析"
         extra={
-          <DatePicker
-            value={selectedDate}
-            onChange={setSelectedDate}
-            allowClear={false}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Select
+              placeholder="筛选博主"
+              style={{ width: 150 }}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                option.label.toLowerCase().includes(input.toLowerCase())
+              }
+              options={bloggerFilterOptions}
+              value={analysisBloggerFilter}
+              onChange={setAnalysisBloggerFilter}
+            />
+            <DatePicker
+              value={selectedDate}
+              onChange={setSelectedDate}
+              allowClear={false}
+            />
+          </div>
         }
       >
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={6}>
             <Statistic
               title="参与博主"
-              value={analysis.blogger_count}
+              value={analysisBloggerFilter ? 1 : analysis.blogger_count}
             />
           </Col>
           <Col span={6}>
@@ -362,7 +450,7 @@ function GuessAnalysis() {
 
         <Table
           columns={columns}
-          dataSource={analysis.results}
+          dataSource={filteredAnalysisResults}
           rowKey="blogger_id"
           loading={loading}
           expandable={{ expandedRowRender }}

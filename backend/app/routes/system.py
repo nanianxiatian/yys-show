@@ -81,17 +81,47 @@ def update_cookie():
 def check_cookie():
     """检查Cookie状态"""
     from app.services import WeiboSpiderService
+    from datetime import datetime
     
     spider_service = WeiboSpiderService()
     is_valid = spider_service.check_cookie()
     
-    expire_time = SystemConfig.get_value('cookie_expire_time')
+    # 获取更新时间
+    update_time = SystemConfig.get_value('cookie_expire_time')
+    
+    # 解析Cookie中的ALF字段获取真实过期时间
+    cookie_expire_date = None
+    days_left = None
+    try:
+        cookie = SystemConfig.get_value('weibo_cookie', '')
+        if cookie:
+            for part in cookie.split('; '):
+                if part.startswith('ALF='):
+                    alf_value = part.split('=', 1)[1]
+                    # 处理格式如 "02_1774342769"
+                    if '_' in alf_value:
+                        _, timestamp_str = alf_value.split('_')
+                        timestamp = int(timestamp_str)
+                    else:
+                        timestamp = int(alf_value)
+                    
+                    expire_dt = datetime.fromtimestamp(timestamp)
+                    cookie_expire_date = expire_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    now = datetime.now()
+                    if expire_dt > now:
+                        days_left = (expire_dt - now).days
+                    break
+    except Exception as e:
+        print(f"解析Cookie过期时间失败: {e}")
     
     return jsonify({
         'success': True,
         'data': {
             'is_valid': is_valid,
-            'expire_time': expire_time
+            'expire_time': update_time,
+            'cookie_expire_date': cookie_expire_date,
+            'days_left': days_left
         }
     })
 

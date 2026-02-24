@@ -12,7 +12,7 @@ class Shikigami(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False, unique=True, comment='式神名称')
     english_name = db.Column(db.String(100), comment='式神英文简称')
-    rarity = db.Column(db.Enum('N', 'R', 'SR', 'SSR', 'SP', 'UR', name='rarity_enum'), default='SR', comment='稀有度')
+    rarity = db.Column(db.Enum('N', 'R', 'SR', 'SSR', 'SP', 'UR', '素材', name='rarity_enum'), default='SR', comment='稀有度')
     skill_1 = db.Column(db.String(200), comment='一技能')
     skill_2 = db.Column(db.String(200), comment='二技能')
     skill_3 = db.Column(db.String(200), comment='三技能')

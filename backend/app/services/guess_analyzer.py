@@ -154,7 +154,16 @@ class GuessAnalyzerService:
         """
         from datetime import timedelta
         
-        end_date = date.today()
+        # 获取数据库中最新和最早的竞猜日期
+        latest_date = db.session.query(func.max(WeiboPost.guess_date)).filter(
+            WeiboPost.guess_date != None
+        ).scalar()
+        
+        if latest_date:
+            end_date = latest_date
+        else:
+            end_date = date.today()
+        
         if date_range == '7d':
             start_date = end_date - timedelta(days=7)
         elif date_range == '30d':
@@ -162,6 +171,36 @@ class GuessAnalyzerService:
         else:
             start_date = None
         
+        # 获取所有博主
+        bloggers = Blogger.query.filter_by(is_active=True).all()
+        
+        leaderboard = []
+        for blogger in bloggers:
+            stats = cls.get_blogger_stats(blogger.id, start_date, end_date)
+            if stats and stats['valid_guesses'] > 0:
+                leaderboard.append(stats)
+        
+        # 按准确率排序
+        leaderboard.sort(key=lambda x: x['accuracy_rate'], reverse=True)
+        
+        # 添加排名
+        for i, item in enumerate(leaderboard):
+            item['rank'] = i + 1
+        
+        return leaderboard
+    
+    @classmethod
+    def get_leaderboard_custom(cls, start_date, end_date):
+        """
+        获取自定义时间范围的博主排行榜
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            list: 排行榜数据
+        """
         # 获取所有博主
         bloggers = Blogger.query.filter_by(is_active=True).all()
         

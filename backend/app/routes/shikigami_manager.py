@@ -14,11 +14,15 @@ def get_shikigami_list():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         keyword = request.args.get('keyword', '')
+        rarity = request.args.get('rarity', '')
         
         query = Shikigami.query
         
         if keyword:
             query = query.filter(Shikigami.name.contains(keyword))
+        
+        if rarity:
+            query = query.filter(Shikigami.rarity == rarity)
         
         pagination = query.order_by(Shikigami.id.desc()).paginate(
             page=page, per_page=per_page, error_out=False

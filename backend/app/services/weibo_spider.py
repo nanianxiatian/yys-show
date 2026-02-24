@@ -30,15 +30,22 @@ class WeiboSpiderService:
             bool: 是否成功
         """
         try:
-            self._get_crawler().set_cookie(cookie)
-            if self._get_crawler().check_cookie_valid():
+            # 创建新的 crawler 实例来验证新 cookie
+            test_crawler = WeiboCrawler(cookie=cookie)
+            
+            if test_crawler.check_cookie_valid():
+                # 验证成功，保存到数据库并更新当前 crawler
                 SystemConfig.set_value('weibo_cookie', cookie)
                 SystemConfig.set_value('cookie_expire_time',
                     datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+                # 重置 crawler，下次会使用新 cookie
+                self.crawler = None
                 return True
             return False
         except Exception as e:
             print(f"更新Cookie失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def check_cookie(self):
@@ -392,8 +399,12 @@ class WeiboSpiderService:
             total_posts = 0
             errors = []
             
-            for blogger in bloggers:
+            import time
+            for i, blogger in enumerate(bloggers):
                 try:
+                    # 博主之间添加延迟，避免请求过于频繁
+                    if i > 0:
+                        time.sleep(2.0)
                     count = self._spider_blogger_by_time_range(blogger, start_time, end_time)
                     total_posts += count
                 except Exception as e:

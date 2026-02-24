@@ -4,6 +4,7 @@ from app.config import config_map
 from app.models import db
 from app.routes import register_blueprints
 from app.services import SchedulerService
+from app.services.task_manager import task_manager
 
 
 def create_app(config_name='default'):
@@ -36,6 +37,9 @@ def create_app(config_name='default'):
     
     # 注册蓝图
     register_blueprints(app)
+    
+    # 初始化任务管理器
+    task_manager.init_app(app)
     
     # 启动定时任务调度器
     scheduler = SchedulerService()

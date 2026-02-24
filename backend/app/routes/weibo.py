@@ -221,13 +221,15 @@ def get_spider_logs():
 
 @weibo_bp.route('/sync-time-range', methods=['POST'])
 def sync_by_time_range():
-    """按时间段同步微博"""
+    """按时间段同步微博（异步版本）"""
     from app.services import WeiboSpiderService
+    from app.services.task_manager import task_manager
     
     data = request.get_json() or {}
     blogger_id = data.get('blogger_id')  # 可选，指定博主ID
     date = data.get('date')  # 日期，格式：YYYY-MM-DD
     time_slot = data.get('time_slot')  # 时间段，格式：HH:MM-HH:MM
+    async_mode = data.get('async', True)  # 默认异步模式
     
     if not date or not time_slot:
         return jsonify({
@@ -251,6 +253,40 @@ def sync_by_time_range():
             'message': '时间段格式错误，应为 HH:MM-HH:MM'
         }), 400
     
+    # 异步模式：创建后台任务
+    if async_mode:
+        task_id = task_manager.create_task(
+            task_type='sync_time_range',
+            params={
+                'blogger_id': blogger_id,
+                'date': date,
+                'time_slot': time_slot,
+                'start_time': start_datetime,
+                'end_time': end_datetime
+            }
+        )
+        
+        def run_sync_task():
+            spider_service = WeiboSpiderService()
+            return spider_service.spider_by_time_range(
+                blogger_id=blogger_id,
+                start_time=start_datetime,
+                end_time=end_datetime,
+                spider_type='manual'
+            )
+        
+        task_manager.run_task_async(task_id, run_sync_task)
+        
+        return jsonify({
+            'success': True,
+            'message': '同步任务已创建',
+            'data': {
+                'task_id': task_id,
+                'status': 'pending'
+            }
+        })
+    
+    # 同步模式（保持兼容）
     spider_service = WeiboSpiderService()
     result = spider_service.spider_by_time_range(
         blogger_id=blogger_id,
@@ -274,3 +310,30 @@ def sync_by_time_range():
             'success': False,
             'message': result.get('error', '同步失败')
         }), 500
+
+
+@weibo_bp.route('/sync-task/<task_id>', methods=['GET'])
+def get_sync_task_status(task_id):
+    """获取同步任务状态"""
+    from app.services.task_manager import task_manager
+    
+    task = task_manager.get_task(task_id)
+    
+    if not task:
+        return jsonify({
+            'success': False,
+            'message': '任务不存在'
+        }), 404
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'task_id': task['id'],
+            'status': task['status'],
+            'progress': task['progress'],
+            'result': task['result'],
+            'error': task['error'],
+            'created_at': task['created_at'].isoformat() if task['created_at'] else None,
+            'completed_at': task['completed_at'].isoformat() if task['completed_at'] else None
+        }
+    })
