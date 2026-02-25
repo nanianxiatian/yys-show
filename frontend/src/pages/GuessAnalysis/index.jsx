@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Card, DatePicker, Table, Tag, Row, Col, Statistic, Radio, message, Select, Button, Modal, List
+  Card, DatePicker, Table, Tag, Row, Col, Statistic, Radio, message, Select, Button, Modal, List, Avatar
 } from 'antd'
 import {
   CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, EyeOutlined
@@ -184,7 +184,21 @@ function GuessAnalysis() {
   const columns = [
     {
       title: '博主',
-      dataIndex: 'blogger_nickname'
+      dataIndex: 'blogger_nickname',
+      render: (nickname, record) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Avatar
+            src={record.avatar_url}
+            size="small"
+            style={{ flexShrink: 0 }}
+          >
+            {nickname?.charAt(0)?.toUpperCase()}
+          </Avatar>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {nickname}
+          </span>
+        </div>
+      )
     },
     {
       title: '预测次数',
@@ -228,9 +242,11 @@ function GuessAnalysis() {
       dataIndex: 'rank',
       width: 70,
       render: (rank) => {
-        const colors = ['#ff4d4f', '#ff7a45', '#ffa940']
+        // 前3名使用特殊颜色，第4-10名使用蓝色系，第11名以后使用灰色
+        const colors = ['#ff4d4f', '#ff7a45', '#ffa940', '#1890ff', '#52c41a', '#722ed1', '#eb2f96', '#fa8c16', '#13c2c2', '#f5222d']
+        const color = rank <= 10 ? colors[rank - 1] : '#d9d9d9'
         return (
-          <Tag color={colors[rank - 1] || '#d9d9d9'}>
+          <Tag color={color}>
             {rank}
           </Tag>
         )
@@ -239,7 +255,21 @@ function GuessAnalysis() {
     {
       title: '博主',
       dataIndex: 'blogger_nickname',
-      width: 120
+      width: 150,
+      render: (nickname, record) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Avatar
+            src={record.avatar_url}
+            size="small"
+            style={{ flexShrink: 0 }}
+          >
+            {nickname?.charAt(0)?.toUpperCase()}
+          </Avatar>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {nickname}
+          </span>
+        </div>
+      )
     },
     {
       title: '总预测',

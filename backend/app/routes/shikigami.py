@@ -1,12 +1,15 @@
 """
 式神分析路由
 """
-from flask import request, jsonify
+from flask import request, jsonify, send_file
 from ..models import db
 from ..models.official_result import OfficialResult
+from ..models.shikigami import Shikigami
 from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 from . import shikigami_bp
+import requests
+from io import BytesIO
 
 
 @shikigami_bp.route('/analysis', methods=['GET'])
@@ -79,12 +82,21 @@ def get_shikigami_analysis():
                     else:
                         shikigami_stats[shiki_name]['losses'] += 1
         
+        # 获取所有式神heroid
+        shikigami_db = Shikigami.query.all()
+        heroid_map = {s.name: s.heroid for s in shikigami_db}
+
         # 转换为列表并计算胜率
         analysis_list = []
         for name, stats in shikigami_stats.items():
             win_rate = round((stats['wins'] / stats['appearances']) * 100, 2) if stats['appearances'] > 0 else 0
+            heroid = heroid_map.get(name)
+            # 构建代理URL
+            avatar_url = f"/api/shikigami/avatar/{heroid}" if heroid else None
             analysis_list.append({
                 'name': name,
+                'heroid': heroid,
+                'avatar_url': avatar_url,
                 'appearances': stats['appearances'],
                 'wins': stats['wins'],
                 'losses': stats['losses'],
@@ -93,7 +105,19 @@ def get_shikigami_analysis():
         
         # 按出场次数降序排序
         analysis_list.sort(key=lambda x: x['appearances'], reverse=True)
-        
+
+        # 添加排名（标准排名：1, 2, 2, 2, 3...）
+        for i, item in enumerate(analysis_list):
+            if i == 0:
+                item['rank'] = 1
+            else:
+                # 如果出场次数与前一个相同，则排名相同
+                if item['appearances'] == analysis_list[i - 1]['appearances']:
+                    item['rank'] = analysis_list[i - 1]['rank']
+                else:
+                    # 下一个排名是前一个排名 + 1（不是当前索引 + 1）
+                    item['rank'] = analysis_list[i - 1]['rank'] + 1
+
         return jsonify({
             'success': True,
             'data': analysis_list,
@@ -145,9 +169,48 @@ def get_shikigami_list():
             'success': True,
             'data': sorted(list(shikigigami_set))
         })
-        
+
     except Exception as e:
         return jsonify({
             'success': False,
             'message': f'获取式神列表失败: {str(e)}'
+        }), 500
+
+
+@shikigami_bp.route('/avatar/<int:heroid>', methods=['GET'])
+def get_shikigami_avatar(heroid):
+    """
+    代理获取式神头像图片
+    解决跨域问题
+    """
+    try:
+        # 网易官方图片URL
+        url = f"https://yys.res.netease.com/pc/zt/20161108171335/data/shishen/{heroid}.png?v5"
+
+        # 设置请求头，模拟浏览器请求
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Referer': 'https://yys.res.netease.com/'
+        }
+
+        # 请求图片
+        response = requests.get(url, headers=headers, timeout=10)
+
+        if response.status_code == 200:
+            # 返回图片数据
+            return send_file(
+                BytesIO(response.content),
+                mimetype='image/png',
+                as_attachment=False
+            )
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'获取图片失败，状态码: {response.status_code}'
+            }), 404
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取头像失败: {str(e)}'
         }), 500

@@ -87,21 +87,26 @@ class TaskManager:
         def wrapper():
             global _app
             if _app is None:
+                print(f"[TaskManager] 错误: Flask应用未初始化")
                 TaskManager.fail_task(task_id, "Flask应用未初始化")
                 return
             
+            print(f"[TaskManager] 任务 {task_id} 开始执行")
             with _app.app_context():
                 try:
                     TaskManager.update_task(task_id, status='running')
                     result = func(*args, **kwargs)
+                    print(f"[TaskManager] 任务 {task_id} 执行成功")
                     TaskManager.complete_task(task_id, result)
                 except Exception as e:
                     import traceback
                     error_msg = f"{str(e)}\n{traceback.format_exc()}"
+                    print(f"[TaskManager] 任务 {task_id} 执行失败: {error_msg}")
                     TaskManager.fail_task(task_id, error_msg)
         
         thread = threading.Thread(target=wrapper, daemon=True)
         thread.start()
+        print(f"[TaskManager] 任务 {task_id} 已启动，线程ID: {thread.ident}")
         return thread
     
     @staticmethod

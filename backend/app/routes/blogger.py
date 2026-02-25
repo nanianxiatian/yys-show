@@ -190,20 +190,39 @@ def sync_blogger(blogger_id):
 
 @blogger_bp.route('/<int:blogger_id>/sync-weibo', methods=['POST'])
 def sync_blogger_weibo(blogger_id):
-    """手动同步单个博主的微博"""
-    from app.services import WeiboSpiderService
+    """手动同步单个博主的微博（异步）"""
+    from app.services import WeiboSpiderService, TaskManager
     
-    spider_service = WeiboSpiderService()
-    result = spider_service.spider_single_blogger(blogger_id)
+    # 创建异步任务
+    task_id = TaskManager.create_task('sync_weibo', {'blogger_id': blogger_id})
     
-    if result['success']:
-        return jsonify({
-            'success': True,
-            'message': result.get('message', '同步成功'),
-            'data': result.get('data')
-        })
-    else:
+    # 异步执行同步
+    def do_sync():
+        spider_service = WeiboSpiderService()
+        return spider_service.spider_single_blogger(blogger_id)
+    
+    TaskManager.run_task_async(task_id, do_sync)
+    
+    return jsonify({
+        'success': True,
+        'message': '同步任务已启动',
+        'task_id': task_id
+    })
+
+
+@blogger_bp.route('/sync-task/<task_id>', methods=['GET'])
+def get_sync_task_status(task_id):
+    """获取同步任务状态"""
+    from app.services import TaskManager
+    
+    task = TaskManager.get_task(task_id)
+    if not task:
         return jsonify({
             'success': False,
-            'message': result.get('error', '同步失败')
-        }), 500
+            'message': '任务不存在'
+        }), 404
+    
+    return jsonify({
+        'success': True,
+        'data': task
+    })

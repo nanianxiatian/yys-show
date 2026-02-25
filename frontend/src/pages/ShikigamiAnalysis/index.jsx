@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import {
-  Card, DatePicker, Table, Tag, Statistic, Row, Col, message, Button
+  Card, DatePicker, Table, Tag, Statistic, Row, Col, message, Button, Avatar
 } from 'antd'
 import { TrophyOutlined, FireOutlined, PercentageOutlined } from '@ant-design/icons'
 import { shikigamiApi } from '../../services/api'
@@ -81,7 +81,21 @@ function ShikigamiAnalysis() {
     {
       title: '式神',
       dataIndex: 'name',
-      width: 120
+      width: 150,
+      render: (name, record) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Avatar
+            src={record.avatar_url}
+            size="small"
+            style={{ flexShrink: 0 }}
+          >
+            {name?.charAt(0)}
+          </Avatar>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {name}
+          </span>
+        </div>
+      )
     },
     {
       title: '出场次数',

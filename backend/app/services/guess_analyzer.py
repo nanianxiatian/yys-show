@@ -37,6 +37,7 @@ class GuessAnalyzerService:
                 results[blogger_id] = {
                     'blogger_id': blogger_id,
                     'blogger_nickname': pred.blogger.nickname if pred.blogger else '未知',
+                    'avatar_url': pred.blogger.avatar_url if pred.blogger else None,
                     'predictions': [],
                     'correct': 0,
                     'wrong': 0,
@@ -132,6 +133,7 @@ class GuessAnalyzerService:
         return {
             'blogger_id': blogger_id,
             'blogger_nickname': blogger.nickname,
+            'avatar_url': blogger.avatar_url,
             'total_guesses': total,
             'valid_guesses': valid,
             'correct_guesses': correct,
@@ -183,9 +185,17 @@ class GuessAnalyzerService:
         # 按准确率排序
         leaderboard.sort(key=lambda x: x['accuracy_rate'], reverse=True)
         
-        # 添加排名
+        # 添加排名（标准排名：1, 2, 2, 2, 3...）
         for i, item in enumerate(leaderboard):
-            item['rank'] = i + 1
+            if i == 0:
+                item['rank'] = 1
+            else:
+                # 如果准确率与前一个相同，则排名相同
+                if item['accuracy_rate'] == leaderboard[i - 1]['accuracy_rate']:
+                    item['rank'] = leaderboard[i - 1]['rank']
+                else:
+                    # 下一个排名是前一个排名 + 1（不是当前索引 + 1）
+                    item['rank'] = leaderboard[i - 1]['rank'] + 1
         
         return leaderboard
     
@@ -213,9 +223,17 @@ class GuessAnalyzerService:
         # 按准确率排序
         leaderboard.sort(key=lambda x: x['accuracy_rate'], reverse=True)
         
-        # 添加排名
+        # 添加排名（标准排名：1, 2, 2, 2, 3...）
         for i, item in enumerate(leaderboard):
-            item['rank'] = i + 1
+            if i == 0:
+                item['rank'] = 1
+            else:
+                # 如果准确率与前一个相同，则排名相同
+                if item['accuracy_rate'] == leaderboard[i - 1]['accuracy_rate']:
+                    item['rank'] = leaderboard[i - 1]['rank']
+                else:
+                    # 下一个排名是前一个排名 + 1（不是当前索引 + 1）
+                    item['rank'] = leaderboard[i - 1]['rank'] + 1
         
         return leaderboard
     

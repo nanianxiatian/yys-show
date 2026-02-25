@@ -12,6 +12,8 @@ class Shikigami(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(100), nullable=False, unique=True, comment='式神名称')
     english_name = db.Column(db.String(100), comment='式神英文简称')
+    heroid = db.Column(db.Integer, comment='网易官方式神ID')
+    avatar_url = db.Column(db.String(500), comment='式神头像URL')
     rarity = db.Column(db.Enum('N', 'R', 'SR', 'SSR', 'SP', 'UR', '素材', name='rarity_enum'), default='SR', comment='稀有度')
     skill_1 = db.Column(db.String(200), comment='一技能')
     skill_2 = db.Column(db.String(200), comment='二技能')
@@ -26,6 +28,8 @@ class Shikigami(db.Model):
             'id': self.id,
             'name': self.name,
             'english_name': self.english_name,
+            'heroid': self.heroid,
+            'avatar_url': self.avatar_url,
             'rarity': self.rarity,
             'skill_1': self.skill_1,
             'skill_2': self.skill_2,

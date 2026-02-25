@@ -25,7 +25,8 @@ export const bloggerApi = {
   update: (id, data) => api.put(`/bloggers/${id}`, data),
   delete: (id) => api.delete(`/bloggers/${id}`),
   sync: (id) => api.post(`/bloggers/${id}/sync`),
-  syncWeibo: (id) => api.post(`/bloggers/${id}/sync-weibo`)
+  syncWeibo: (id) => api.post(`/bloggers/${id}/sync-weibo`),
+  getSyncTaskStatus: (taskId) => api.get(`/bloggers/sync-task/${taskId}`)
 }
 
 // 微博数据API

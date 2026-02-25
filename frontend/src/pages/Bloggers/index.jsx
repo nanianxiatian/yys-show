@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import {
-  Table, Button, Modal, Form, Input, Switch, Space, Tag, message, Popconfirm, Radio
+  Table, Button, Modal, Form, Input, Switch, Space, Tag, message, Popconfirm, Radio, Progress
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SyncOutlined, UserOutlined, LinkOutlined
@@ -13,6 +13,8 @@ function Bloggers() {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingBlogger, setEditingBlogger] = useState(null)
   const [syncLoading, setSyncLoading] = useState({})
+  const [syncTasks, setSyncTasks] = useState({}) // 存储同步任务状态 { bloggerId: { taskId, status, progress } }
+  const syncIntervals = useRef({}) // 存储轮询定时器
   const [form] = Form.useForm()
   const [inputMode, setInputMode] = useState('nickname') // 'nickname' 或 'url'
   const [pagination, setPagination] = useState({
@@ -120,6 +122,128 @@ function Bloggers() {
     }
   }
 
+  // 轮询同步任务状态
+  const pollSyncTask = (bloggerId, taskId) => {
+    // 清除之前的轮询
+    if (syncIntervals.current[bloggerId]) {
+      clearInterval(syncIntervals.current[bloggerId])
+    }
+
+    let retryCount = 0
+    const maxRetries = 3
+
+    // 设置新的轮询
+    syncIntervals.current[bloggerId] = setInterval(async () => {
+      try {
+        const res = await bloggerApi.getSyncTaskStatus(taskId)
+        if (res.success) {
+          retryCount = 0 // 重置重试计数
+          const task = res.data
+          setSyncTasks(prev => ({
+            ...prev,
+            [bloggerId]: {
+              taskId,
+              status: task.status,
+              progress: task.progress || 0,
+              result: task.result,
+              error: task.error,
+              startTime: prev[bloggerId]?.startTime || Date.now()
+            }
+          }))
+
+          // 任务完成或失败时停止轮询
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearInterval(syncIntervals.current[bloggerId])
+            delete syncIntervals.current[bloggerId]
+
+            if (task.status === 'completed') {
+              message.success(`同步完成：${task.result?.message || '成功'}`)
+              fetchBloggers() // 刷新列表
+            } else {
+              message.error(`同步失败：${task.error || '未知错误'}`)
+            }
+
+            // 3秒后清除该任务状态
+            setTimeout(() => {
+              setSyncTasks(prev => {
+                const newTasks = { ...prev }
+                delete newTasks[bloggerId]
+                return newTasks
+              })
+            }, 3000)
+          }
+        } else {
+          // 查询失败，增加重试计数
+          retryCount++
+          if (retryCount >= maxRetries) {
+            clearInterval(syncIntervals.current[bloggerId])
+            delete syncIntervals.current[bloggerId]
+            message.error('查询同步状态失败，请手动刷新页面查看结果')
+            setSyncTasks(prev => {
+              const newTasks = { ...prev }
+              delete newTasks[bloggerId]
+              return newTasks
+            })
+          }
+        }
+      } catch (error) {
+        console.error('查询同步状态失败:', error)
+        retryCount++
+        if (retryCount >= maxRetries) {
+          clearInterval(syncIntervals.current[bloggerId])
+          delete syncIntervals.current[bloggerId]
+          message.error('查询同步状态失败，请手动刷新页面查看结果')
+          setSyncTasks(prev => {
+            const newTasks = { ...prev }
+            delete newTasks[bloggerId]
+            return newTasks
+          })
+        }
+      }
+    }, 3000) // 每3秒查询一次
+  }
+
+  // 同步微博（异步）
+  const handleSyncWeibo = async (id) => {
+    try {
+      // 设置同步中状态
+      setSyncTasks(prev => ({
+        ...prev,
+        [id]: { status: 'pending', progress: 0, startTime: Date.now() }
+      }))
+
+      const res = await bloggerApi.syncWeibo(id)
+      if (res.success && res.task_id) {
+        message.info('同步任务已启动，请稍候...')
+        // 开始轮询任务状态
+        pollSyncTask(id, res.task_id)
+      } else {
+        message.error(res.message || '启动同步失败')
+        setSyncTasks(prev => {
+          const newTasks = { ...prev }
+          delete newTasks[id]
+          return newTasks
+        })
+      }
+    } catch (error) {
+      message.error('启动同步失败')
+      setSyncTasks(prev => {
+        const newTasks = { ...prev }
+        delete newTasks[id]
+        return newTasks
+      })
+    }
+  }
+
+  // 清理轮询定时器
+  useEffect(() => {
+    return () => {
+      Object.values(syncIntervals.current).forEach(interval => {
+        clearInterval(interval)
+      })
+    }
+  }, [])
+
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields()
@@ -225,44 +349,104 @@ function Bloggers() {
     {
       title: '操作',
       key: 'action',
-      width: 250,
-      render: (_, record) => (
-        <Space>
-          <Button
-            type="primary"
-            size="small"
-            icon={<SyncOutlined />}
-            loading={syncLoading[record.id]}
-            onClick={() => handleSync(record.id)}
-          >
-            同步信息
-          </Button>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
-          <Popconfirm
-            title="确定删除吗？"
-            onConfirm={() => handleDelete(record.id)}
-          >
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-            >
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
-      )
+      width: 320,
+      render: (_, record) => {
+        const syncTask = syncTasks[record.id]
+        const isSyncing = syncTask && ['pending', 'running'].includes(syncTask.status)
+
+        return (
+          <Space direction="vertical" size="small" style={{ width: '100%' }}>
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                icon={<SyncOutlined />}
+                loading={syncLoading[record.id]}
+                onClick={() => handleSync(record.id)}
+              >
+                同步信息
+              </Button>
+              <Button
+                size="small"
+                icon={<SyncOutlined spin={isSyncing} />}
+                loading={isSyncing}
+                onClick={() => handleSyncWeibo(record.id)}
+                disabled={isSyncing}
+              >
+                {isSyncing ? '同步中...' : '同步微博'}
+              </Button>
+              <Button
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+              >
+                编辑
+              </Button>
+              <Popconfirm
+                title="确定删除吗？"
+                onConfirm={() => handleDelete(record.id)}
+              >
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                >
+                  删除
+                </Button>
+              </Popconfirm>
+            </Space>
+            {isSyncing && (
+              <Progress
+                percent={syncTask.progress}
+                size="small"
+                status={syncTask.status === 'running' ? 'active' : 'normal'}
+                style={{ margin: 0, width: 200 }}
+              />
+            )}
+          </Space>
+        )
+      }
     }
   ]
 
+  // 计算正在同步的任务数
+  const syncingCount = Object.values(syncTasks).filter(
+    task => ['pending', 'running'].includes(task.status)
+  ).length
+
   return (
     <div>
+      {/* 全局同步状态提示 */}
+      {syncingCount > 0 && (
+        <div style={{ 
+          marginBottom: 16, 
+          padding: '12px 16px', 
+          background: '#e6f7ff', 
+          border: '1px solid #91d5ff',
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <SyncOutlined spin style={{ color: '#1890ff', marginRight: 8 }} />
+            <span style={{ color: '#1890ff' }}>
+              正在同步 {syncingCount} 个博主的微博数据，请稍候...
+            </span>
+          </div>
+          <Button 
+            size="small" 
+            onClick={() => {
+              // 刷新列表查看最新数据
+              fetchBloggers()
+              message.info('已刷新列表')
+            }}
+          >
+            刷新列表
+          </Button>
+        </div>
+      )}
+
       <div style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           添加博主

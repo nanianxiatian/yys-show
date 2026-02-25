@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
-import { Table, Tag, DatePicker, Select, Button, message, Card, Image, Space, Modal, Radio, Popover } from 'antd'
-import { EditOutlined, LinkOutlined, PictureOutlined, DeleteOutlined, ClockCircleOutlined, DeleteRowOutlined } from '@ant-design/icons'
+import React, { useEffect, useState, useRef } from 'react'
+import { Table, Tag, DatePicker, Select, Button, message, Card, Image, Space, Modal, Radio, Popover, Badge, Tooltip } from 'antd'
+import { EditOutlined, LinkOutlined, PictureOutlined, DeleteOutlined, ClockCircleOutlined, DeleteRowOutlined, SyncOutlined, ReloadOutlined } from '@ant-design/icons'
 import { weiboApi, bloggerApi } from '../../services/api'
 import dayjs from 'dayjs'
 
@@ -36,6 +36,11 @@ function WeiboList() {
   // 批量删除相关状态
   const [selectedRowKeys, setSelectedRowKeys] = useState([])
   const [batchDeleting, setBatchDeleting] = useState(false)
+
+  // 同步任务状态
+  const [lastSyncTask, setLastSyncTask] = useState(null) // 最后一次同步任务
+  const [syncStatusVisible, setSyncStatusVisible] = useState(false) // 是否显示同步状态
+  const syncCheckInterval = useRef(null) // 定时检查同步状态的定时器
 
   // 使用指定筛选值获取微博列表
   const fetchWeibosWithFilters = async (currentFilters, extraParams = {}) => {
@@ -106,10 +111,59 @@ function WeiboList() {
     setTimeRangeModalVisible(true)
   }
 
+  // 查看最后同步任务状态
+  const handleCheckLastSyncStatus = async () => {
+    if (!lastSyncTask || !lastSyncTask.task_id) {
+      message.info('暂无同步任务记录')
+      return
+    }
+
+    try {
+      const res = await weiboApi.getSyncTaskStatus(lastSyncTask.task_id)
+      if (res.success) {
+        const task = res.data
+        setLastSyncTask(task)
+        setSyncStatusVisible(true)
+
+        // 如果任务仍在进行中，提示用户
+        if (task.status === 'running' || task.status === 'pending') {
+          message.info('同步任务仍在进行中...')
+        }
+      } else {
+        message.error(res.message || '查询失败')
+      }
+    } catch (error) {
+      message.error('查询同步状态失败')
+    }
+  }
+
+  // 刷新同步状态
+  const handleRefreshSyncStatus = async () => {
+    await handleCheckLastSyncStatus()
+  }
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (syncCheckInterval.current) {
+        clearInterval(syncCheckInterval.current)
+      }
+    }
+  }, [])
+
   // 轮询任务状态
   const pollTaskStatus = async (taskId, bloggerName) => {
     const maxAttempts = 60 // 最多轮询60次（约2分钟）
     let attempts = 0
+    
+    // 保存任务信息到 lastSyncTask
+    setLastSyncTask({
+      task_id: taskId,
+      blogger_name: bloggerName,
+      status: 'pending',
+      start_time: dayjs().format('YYYY-MM-DD HH:mm:ss')
+    })
+    setSyncStatusVisible(true)
     
     const checkStatus = async () => {
       try {
@@ -119,24 +173,33 @@ function WeiboList() {
           message.destroy()
           message.error('获取任务状态失败')
           setTimeRangeSyncing(false)
+          setSyncStatusVisible(false)
           return
         }
         
-        const { status, result, error } = res.data
+        const task = res.data
         
-        if (status === 'completed') {
+        // 更新任务状态
+        setLastSyncTask(prev => ({
+          ...prev,
+          ...task,
+          task_id: taskId,
+          blogger_name: bloggerName
+        }))
+        
+        if (task.status === 'completed') {
           message.destroy()
-          const totalPosts = result?.total_posts || 0
+          const totalPosts = task.result?.total_posts || 0
           message.success(`同步完成，共爬取 ${totalPosts} 条微博`)
           fetchWeibosWithFilters(filters)
           setTimeRangeSyncing(false)
           return
-        } else if (status === 'failed') {
+        } else if (task.status === 'failed') {
           message.destroy()
-          message.error(`同步失败: ${error || '未知错误'}`)
+          message.error(`同步失败: ${task.error || '未知错误'}`)
           setTimeRangeSyncing(false)
           return
-        } else if (status === 'running' || status === 'pending') {
+        } else if (task.status === 'running' || task.status === 'pending') {
           attempts++
           if (attempts >= maxAttempts) {
             message.destroy()
@@ -462,10 +525,79 @@ function WeiboList() {
 
   return (
     <div>
+      {/* 同步任务状态提示 */}
+      {syncStatusVisible && lastSyncTask && (
+        <Card
+          size="small"
+          style={{ marginBottom: 16 }}
+          bodyStyle={{ padding: '12px 16px' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Badge
+                status={
+                  lastSyncTask.status === 'completed' ? 'success' :
+                  lastSyncTask.status === 'failed' ? 'error' :
+                  'processing'
+                }
+              />
+              <span style={{ fontWeight: 500 }}>
+                同步任务: {lastSyncTask.blogger_name || '全部博主'}
+              </span>
+              <Tag color={
+                lastSyncTask.status === 'completed' ? 'success' :
+                lastSyncTask.status === 'failed' ? 'error' :
+                'processing'
+              }>
+                {lastSyncTask.status === 'completed' ? '已完成' :
+                 lastSyncTask.status === 'failed' ? '失败' :
+                 lastSyncTask.status === 'running' ? '进行中' : '等待中'}
+              </Tag>
+              {lastSyncTask.status === 'completed' && lastSyncTask.result?.total_posts && (
+                <span style={{ color: '#52c41a' }}>
+                  共爬取 {lastSyncTask.result.total_posts} 条微博
+                </span>
+              )}
+              {lastSyncTask.status === 'failed' && lastSyncTask.error && (
+                <span style={{ color: '#f5222d' }}>
+                  错误: {lastSyncTask.error.substring(0, 50)}
+                </span>
+              )}
+            </div>
+            <Space>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={handleRefreshSyncStatus}
+                loading={timeRangeSyncing}
+              >
+                刷新状态
+              </Button>
+              <Button
+                size="small"
+                onClick={() => setSyncStatusVisible(false)}
+              >
+                隐藏
+              </Button>
+            </Space>
+          </div>
+        </Card>
+      )}
+
       <Card
         title="微博列表"
         extra={
           <Space>
+            {lastSyncTask && (
+              <Tooltip title="查看最新同步任务状态">
+                <Button
+                  icon={<SyncOutlined />}
+                  onClick={handleCheckLastSyncStatus}
+                >
+                  查看同步状态
+                </Button>
+              </Tooltip>
+            )}
             <Button
               type="primary"
               icon={<ClockCircleOutlined />}
