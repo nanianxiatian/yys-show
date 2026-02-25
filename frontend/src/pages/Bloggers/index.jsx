@@ -349,7 +349,7 @@ function Bloggers() {
     {
       title: '操作',
       key: 'action',
-      width: 320,
+      width: 250,
       render: (_, record) => {
         const syncTask = syncTasks[record.id]
         const isSyncing = syncTask && ['pending', 'running'].includes(syncTask.status)
@@ -365,15 +365,6 @@ function Bloggers() {
                 onClick={() => handleSync(record.id)}
               >
                 同步信息
-              </Button>
-              <Button
-                size="small"
-                icon={<SyncOutlined spin={isSyncing} />}
-                loading={isSyncing}
-                onClick={() => handleSyncWeibo(record.id)}
-                disabled={isSyncing}
-              >
-                {isSyncing ? '同步中...' : '同步微博'}
               </Button>
               <Button
                 size="small"
