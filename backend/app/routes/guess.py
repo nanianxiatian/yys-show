@@ -1,5 +1,6 @@
 from flask import request, jsonify
 from datetime import datetime, date
+from sqlalchemy import func, case as sql_case
 from app.models import db, BloggerStats
 from app.services import GuessAnalyzerService
 from . import guess_bp
@@ -193,4 +194,97 @@ def get_guess_history():
         'success': True,
         'data': data,
         'total': len(data)
+    })
+
+
+@guess_bp.route('/red-blue-stats', methods=['GET'])
+def get_red_blue_stats():
+    """获取红蓝方胜率统计"""
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    # 解析日期
+    if start_date:
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': '开始日期格式错误，应为 YYYY-MM-DD'
+            }), 400
+    else:
+        # 默认2026-02-17
+        start_date = datetime.strptime('2026-02-17', '%Y-%m-%d').date()
+    
+    if end_date:
+        try:
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({
+                'success': False,
+                'message': '结束日期格式错误，应为 YYYY-MM-DD'
+            }), 400
+    else:
+        # 默认2026-02-23
+        end_date = datetime.strptime('2026-02-23', '%Y-%m-%d').date()
+    
+    from app.models import OfficialResult
+    
+    # 查询每日红蓝方统计
+    daily_stats = db.session.query(
+        OfficialResult.guess_date,
+        func.count(sql_case((OfficialResult.result == 'left', 1), else_=None)).label('red_wins'),
+        func.count(sql_case((OfficialResult.result == 'right', 1), else_=None)).label('blue_wins'),
+        func.count(OfficialResult.id).label('total')
+    ).filter(
+        OfficialResult.guess_date >= start_date,
+        OfficialResult.guess_date <= end_date
+    ).group_by(
+        OfficialResult.guess_date
+    ).order_by(
+        OfficialResult.guess_date.asc()
+    ).all()
+    
+    # 计算总计
+    total_red = 0
+    total_blue = 0
+    total_count = 0
+    
+    data = []
+    for stat in daily_stats:
+        date_str = stat.guess_date.strftime('%Y-%m-%d')
+        red_rate = round((stat.red_wins / stat.total * 100), 2) if stat.total > 0 else 0
+        blue_rate = round((stat.blue_wins / stat.total * 100), 2) if stat.total > 0 else 0
+        
+        data.append({
+            'date': date_str,
+            'red_wins': stat.red_wins,
+            'blue_wins': stat.blue_wins,
+            'total': stat.total,
+            'red_rate': red_rate,
+            'blue_rate': blue_rate
+        })
+        
+        total_red += stat.red_wins
+        total_blue += stat.blue_wins
+        total_count += stat.total
+    
+    # 计算总体胜率
+    overall_red_rate = round((total_red / total_count * 100), 2) if total_count > 0 else 0
+    overall_blue_rate = round((total_blue / total_count * 100), 2) if total_count > 0 else 0
+    
+    return jsonify({
+        'success': True,
+        'data': {
+            'daily_stats': data,
+            'summary': {
+                'total_red': total_red,
+                'total_blue': total_blue,
+                'total_count': total_count,
+                'overall_red_rate': overall_red_rate,
+                'overall_blue_rate': overall_blue_rate
+            },
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d')
+        }
     })

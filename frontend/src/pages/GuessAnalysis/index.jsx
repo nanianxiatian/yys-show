@@ -5,6 +5,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, EyeOutlined
 } from '@ant-design/icons'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { guessApi, bloggerApi } from '../../services/api'
 import dayjs from 'dayjs'
 
@@ -29,6 +30,19 @@ function GuessAnalysis() {
   // 排行榜时间筛选状态 - 默认 2026-02-17 到 2026-02-23
   const [leaderboardStartDate, setLeaderboardStartDate] = useState(dayjs('2026-02-17'))
   const [leaderboardEndDate, setLeaderboardEndDate] = useState(dayjs('2026-02-23'))
+  // 红蓝胜率分析状态
+  const [redBlueStats, setRedBlueStats] = useState({
+    daily_stats: [],
+    summary: {
+      total_red: 0,
+      total_blue: 0,
+      total_count: 0,
+      overall_red_rate: 0,
+      overall_blue_rate: 0
+    }
+  })
+  const [redBlueStartDate, setRedBlueStartDate] = useState(dayjs('2026-02-17'))
+  const [redBlueEndDate, setRedBlueEndDate] = useState(dayjs('2026-02-23'))
 
   useEffect(() => {
     fetchAnalysis()
@@ -38,6 +52,10 @@ function GuessAnalysis() {
   useEffect(() => {
     fetchLeaderboard()
   }, [leaderboardStartDate, leaderboardEndDate])
+
+  useEffect(() => {
+    fetchRedBlueStats()
+  }, [redBlueStartDate, redBlueEndDate])
 
   const fetchAllBloggers = async () => {
     try {
@@ -120,6 +138,22 @@ function GuessAnalysis() {
       message.error('获取排行榜失败')
     }
   }, [leaderboardStartDate, leaderboardEndDate])
+
+  const fetchRedBlueStats = useCallback(async () => {
+    try {
+      const params = {
+        start_date: redBlueStartDate.format('YYYY-MM-DD'),
+        end_date: redBlueEndDate.format('YYYY-MM-DD')
+      }
+      const res = await guessApi.getRedBlueStats(params)
+      if (res.success) {
+        setRedBlueStats(res.data)
+      }
+    } catch (error) {
+      console.error('获取红蓝胜率统计失败:', error)
+      message.error('获取红蓝胜率统计失败')
+    }
+  }, [redBlueStartDate, redBlueEndDate])
 
   const expandedRowRender = (record) => {
     const columns = [
@@ -490,6 +524,126 @@ function GuessAnalysis() {
             showTotal: (total) => `共 ${total} 条`,
             pageSizeOptions: ['10', '20', '50']
           }}
+        />
+      </Card>
+
+      {/* 红蓝方胜率分析 */}
+      <Card
+        title="红蓝方胜率分析"
+        extra={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <DatePicker
+              value={redBlueStartDate}
+              onChange={(date) => setRedBlueStartDate(date)}
+              allowClear={false}
+              size="small"
+              style={{ width: 130 }}
+            />
+            <span>至</span>
+            <DatePicker
+              value={redBlueEndDate}
+              onChange={(date) => setRedBlueEndDate(date)}
+              allowClear={false}
+              size="small"
+              style={{ width: 130 }}
+            />
+            <Button size="small" onClick={fetchRedBlueStats}>刷新</Button>
+          </div>
+        }
+        style={{ marginTop: 16 }}
+      >
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Statistic
+              title="红方胜场"
+              value={redBlueStats.summary.total_red}
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="蓝方胜场"
+              value={redBlueStats.summary.total_blue}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="红方胜率"
+              value={redBlueStats.summary.overall_red_rate}
+              suffix="%"
+              valueStyle={{ color: '#ff4d4f' }}
+            />
+          </Col>
+          <Col span={6}>
+            <Statistic
+              title="蓝方胜率"
+              value={redBlueStats.summary.overall_blue_rate}
+              suffix="%"
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Col>
+        </Row>
+
+        <div style={{ height: 300, marginTop: 16 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={redBlueStats.daily_stats}
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={(value) => dayjs(value).format('MM-DD')} />
+              <YAxis label={{ value: '胜率 (%)', angle: -90, position: 'insideLeft' }} />
+              <Tooltip
+                formatter={(value, name) => [`${value}%`, name === 'red_rate' ? '红方胜率' : '蓝方胜率']}
+                labelFormatter={(label) => dayjs(label).format('YYYY-MM-DD')}
+              />
+              <Legend
+                formatter={(value) => value === 'red_rate' ? '红方胜率' : '蓝方胜率'}
+              />
+              <Bar dataKey="red_rate" name="red_rate" fill="#ff4d4f" />
+              <Bar dataKey="blue_rate" name="blue_rate" fill="#1890ff" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <Table
+          columns={[
+            {
+              title: '日期',
+              dataIndex: 'date',
+              render: (date) => dayjs(date).format('YYYY-MM-DD')
+            },
+            {
+              title: '红方胜场',
+              dataIndex: 'red_wins',
+              render: (num) => <Tag color="red">{num}</Tag>
+            },
+            {
+              title: '蓝方胜场',
+              dataIndex: 'blue_wins',
+              render: (num) => <Tag color="blue">{num}</Tag>
+            },
+            {
+              title: '总场次',
+              dataIndex: 'total'
+            },
+            {
+              title: '红方胜率',
+              dataIndex: 'red_rate',
+              render: (rate) => <Tag color="red">{rate}%</Tag>
+            },
+            {
+              title: '蓝方胜率',
+              dataIndex: 'blue_rate',
+              render: (rate) => <Tag color="blue">{rate}%</Tag>
+            }
+          ]}
+          dataSource={redBlueStats.daily_stats}
+          rowKey="date"
+          pagination={false}
+          size="small"
+          style={{ marginTop: 16 }}
         />
       </Card>
 

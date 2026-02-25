@@ -47,6 +47,11 @@ const menuItems = [
     label: '竞猜分析',
   },
   {
+    key: '/official',
+    icon: <EditOutlined />,
+    label: '官方结果录入',
+  },
+  {
     key: '/shikigami',
     icon: <FireOutlined />,
     label: '式神分析',
@@ -55,11 +60,6 @@ const menuItems = [
     key: '/shikigami-manager',
     icon: <CrownOutlined />,
     label: '式神管理',
-  },
-  {
-    key: '/official',
-    icon: <EditOutlined />,
-    label: '官方结果录入',
   },
   {
     key: '/jobs',
@@ -82,13 +82,31 @@ function AppContent({ collapsed, setCollapsed }) {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ 
-        display: 'flex', 
+      <Header style={{
+        display: 'flex',
         alignItems: 'center',
-        background: '#001529',
-        padding: '0 24px'
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+        padding: '0 24px',
+        borderBottom: '2px solid #ffd700'
       }}>
-        <Title level={3} style={{ color: '#fff', margin: 0 }}>
+        <img
+          src="/frog.png"
+          alt="青蛙瓷器"
+          style={{
+            width: '44px',
+            height: '44px',
+            marginRight: '12px',
+            borderRadius: '50%',
+            border: '2px solid #ffffff',
+            boxShadow: '0 0 10px rgba(255, 255, 255, 0.5)',
+            objectFit: 'cover'
+          }}
+        />
+        <Title level={3} style={{
+          color: '#fff',
+          margin: 0,
+          textShadow: '0 0 10px rgba(255, 215, 0, 0.5)'
+        }}>
           阴阳师对弈竞猜分析系统
         </Title>
       </Header>

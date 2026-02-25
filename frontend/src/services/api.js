@@ -48,7 +48,8 @@ export const guessApi = {
   getLeaderboard: (params) => api.get('/guess/leaderboard', { params }),
   getBloggerStats: (id, params) => api.get(`/guess/blogger/${id}/stats`, { params }),
   updateStats: (data) => api.post('/guess/stats/update', data),
-  getHistory: (params) => api.get('/guess/history', { params })
+  getHistory: (params) => api.get('/guess/history', { params }),
+  getRedBlueStats: (params) => api.get('/guess/red-blue-stats', { params })
 }
 
 // 官方结果API
